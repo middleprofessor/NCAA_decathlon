@@ -1,6 +1,6 @@
 All code (R files, script files) is under the [MIT licence](http://opensource.org/licenses/MIT)
 
-Copyright (c) <2015> <Jeffrey A. Walker>
+Copyright (c) 2015 Jeffrey A. Walker
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
