@@ -1,0 +1,1656 @@
+\documentclass{article}
+% amsmath package, useful for mathematical formulas
+\usepackage{amsmath}
+% amssymb package, useful for mathematical symbols
+\usepackage{amssymb}
+% use unicode
+\usepackage{bm}
+
+% citep package, to clean up citations in the main text. Do not remove.
+%\usepackage{citep}
+\usepackage{natbib}
+
+% graphicx package, useful for including eps and pdf graphics
+% include graphics with the command \includegraphics
+\usepackage{graphicx}
+\usepackage{color}
+
+ % my added packages
+\usepackage{tikz}
+\usetikzlibrary{positioning}
+
+\usepackage[margin=2.5cm]{geometry}
+
+\begin{document}
+
+% Title
+\begin{center}
+{\Large
+\textbf{Supplement 1: "Performance trade-offs and Individual Quality in NCAA decathletes"}
+}
+% Authors
+\\
+\textbf{Jeffrey A. Walker}$^{1,\ast}$
+\textbf{Sean P. Caddigan}$^{1}$
+\
+\end{center}
+
+
+\begin{flushleft}
+
+$^1$ Department of Biological Sciences, University of Southern Maine, 96 Falmouth St., Portland, ME, 04103, U.S.A.
+$^\ast$ E-mail: walker@maine.edu
+
+<<housekeeping,echo=FALSE,message=FALSE>>=
+library(data.table)
+library(ggplot2)
+library(gridExtra) #grid.arrange
+library(corpcor)
+library(reshape2) #melt
+library(colorspace) # color palette
+library(quantreg) #lprq - quantile regression
+library(xtable)
+@
+
+\section{Path Models}
+Path diagrams are models of causal relationships. Our path models are hypothetical and used only for clarification and proof of concept. They should be thought of as models for generating simulated data (which the scripts do) in order to demonstrate concepts and not as a model to fit to empirical data.
+\subsection{Simple model of correlation with single common cause}
+
+\begin{equation}
+  \begin{tikzpicture}
+    \node (1) {$M$};
+		\node[below left=of 1] (2) {$P_1$};
+		\node[below right=of 1] (3) {$P_2$};
+		\node[left=of 2] (4) {$U_1$};
+		\node[right=of 3] (5) {$U_2$};
+		%\node[left =of 2] (4) {$U_1$};
+		%\node[left =of 3] (5) {$U_2$};
+		\draw [->] (1) -- node[above,font=\footnotesize]{$\beta_1$} (2);
+		\draw [->] (1) -- node[above,font=\footnotesize]{$\beta_2$} (3);
+		\draw [->] (4) to (2);
+		\draw [->] (5) to (3);
+	\end{tikzpicture}
+ \end{equation}
+
+The following script explores the very simple model above of a correlation between two performance traits $P_1$ and $P_2$ due to a common cause $M$ with effect $\beta_1$ and $\beta_2$. $U$ is unexplained variance, scaled so that $P_1$ and $P_2$ have unit variance, so the effects are variance-standardized. $U$ is present in all models but is only explicitly illustrated in this first model. The expected correlation between $P_1$ and $P_2$ is $\beta_1 \beta_2$.
+
+<<simple correlation model>>=
+n <- 10^4 # n is the sample size
+M <- rnorm(n) # M is normally distributed with mean zero and sd = 1
+beta_1 <- 0.6 # beta_1 is the path coefficient from M to P_1
+beta_2 <- -0.6 # beta_2 is the path coefficient from M to P_2
+# P are normaly distributed, centered at 0, and have unit sd
+P_1 <- beta_1*M + 
+  sqrt(1-beta_1^2)*rnorm(n) # the random part U
+P_2 <- beta_2*M + 
+  sqrt(1-beta_1^2)*rnorm(n) # the random part U
+beta_1 * beta_2 # expected functional correlation
+cor(P_1,P_2) # sample correlation
+@
+
+\subsection{Model of masking effect of Quality}
+\begin{equation}
+  \begin{tikzpicture}
+		\node (1) {$M$};
+		\node[below right=of 1] (2) {$P_1$};
+		\node[right=of 2] (3) {$P_2$};
+		\node[above right=of 3] (4) {$Q$};
+		\draw [->] (1) -- node[left,font=\footnotesize]{$\beta_1$} (2);
+		\draw [->] (1) -- node[above,font=\footnotesize]{$\beta_2$} (3);
+		\draw [->] (4) -- node[above,font=\footnotesize]{$\alpha_1$} (2);
+		\draw [->] (4) -- node[right,font=\footnotesize]{$\alpha_2$} (3);
+	\end{tikzpicture}
+ \end{equation}
+
+The following script is the same as above but adds the "quality" variable $Q$, which has large, positive effects on both performance variables. As a consequence $Q$ masks the intrinsic trade-off due to $M$
+
+<<simple correlation model with quality variable>>=
+n <- 10^5 # n is the sample size
+M <- rnorm(n) # M is normally distributed with mean zero and sd = 1
+Q <- rnorm(n) # Q is normalyy distributed with mean zero and sd = 1 and independent of M
+beta_1 <- 0.5 # beta_1 is the path coefficient from M to P_1
+beta_2 <- -0.5 # beta_2 is the path coefficient from M to P_2
+alpha_1 <- 0.7 # alpha_1 is the path coefficient from Q to P_1
+alpha_2 <- 0.7 # alpha_2 is the path coefficient from Q to P_2
+# P_1 and P_2 are normaly distributed, centered at 0, and has unit sd
+P_1 <- alpha_1*Q + beta_1*M + # the causal component
+  sqrt(1-alpha_1^2 - beta_1^2)*rnorm(n) # the random component
+P_2 <- alpha_2*Q + beta_2*M + # the causal component
+  sqrt(1-alpha_2^2 - beta_1^2)*rnorm(n) # the random component
+
+# results
+alpha_1*alpha_2 + beta_1*beta_2 # expected performance correlation
+cor(P_1,P_2) # sample correlation
+beta_1 * beta_2 # expected functional correlation
+cor(P_1,P_2) - alpha_1 * alpha_2 # sample functional correlation
+
+@
+
+\subsection{Why we model $Q$ independent of $M$}
+\begin{equation}
+\begin{tikzpicture}
+\node (1) {$M_1$};
+\node[right=of 1] (2) {$M_2$};
+\node[below=2 cm of 1] (3) {$P_1$};
+\node[below=2 cm of 2] (4) {$P_2$};
+\node[above=of 2] (5) {Q};
+\node[left=of 1] (6) {$G_1$};
+\node[right=of 2] (7) {$G_2$};
+\node[below=of 3] (8) {$U_1$};
+\node[below=of 4] (9) {$U_2$};
+\draw [->] (5) -- node[left,font=\footnotesize]{$\chi_1$} (1);
+\draw [->] (5) -- node[right,font=\footnotesize]{$\chi_2$} (2);
+\draw [->] (1) -- node[left,font=\footnotesize]{$\delta_{11}$} (3);
+\draw [->] (1) -- node[left,pos=.3,font=\footnotesize]{$\delta_{12}$} (4);
+\draw [->] (2) -- node[right,pos=.3,font=\footnotesize]{$\delta_{21}$} (3);
+\draw [->] (2) -- node[right,font=\footnotesize]{$\delta_{22}$} (4);
+\draw [->] (6) -- node[above,font=\footnotesize]{$\eta_1$} (1);
+\draw [->] (7) -- node[above,font=\footnotesize]{$\eta_2$} (2);
+\draw [->] (8) -- node[left,font=\footnotesize]{$\varepsilon_1$} (3);
+\draw [->] (9) -- node[right,font=\footnotesize]{$\varepsilon_2$} (4);
+\node[right=of 7] (10) {$M^G_1$};
+\node[right=of 10] (11) {$M^G_2$};
+\node[right=of 11] (14) {$M^Q_1$};
+\node[right=of 14] (15) {$M^Q_2$};
+\node[below=2 cm of 11] (12) {$P_1$};
+\node[below=2 cm of 14] (13) {$P_2$};
+\node[above=of 10] (16) {$G_1$};
+\node[above=of 11] (17) {$G_2$};
+\node[above=of 14] (18) {$Q$};
+\node[below=of 12] (19) {$U_1$};
+\node[below=of 13] (20) {$U_2$};
+\draw [->] (10) -- node[left,font=\footnotesize]{$\beta_{11}$} (12);
+\draw [->] (10) -- node[left,pos=.3,font=\footnotesize]{$\beta_{12}$} (13);
+\draw [->] (11) -- node[left,pos=.1,font=\footnotesize]{$\beta_{21}$} (12);
+\draw [->] (11) -- node[left,pos=.3,font=\footnotesize]{$\beta_{22}$} (13);
+\draw [->] (14) -- node[right,pos=.3,font=\footnotesize]{$\alpha_{11}$} (12);
+\draw [->] (14) -- node[right,pos=.1,font=\footnotesize]{$\alpha_{12}$} (13);
+\draw [->] (15) -- node[right,pos=.3,font=\footnotesize]{$\alpha_{21}$} (12);
+\draw [->] (15) -- node[right,font=\footnotesize]{$\alpha_{22}$} (13);
+\draw [->] (12) -- node[left,font=\footnotesize]{$\varepsilon_1$} (19);
+\draw [->] (13) -- node[right,font=\footnotesize]{$\varepsilon_2$} (20);
+\draw [->] (18) -- node[left,font=\footnotesize]{$\chi_1$} (14);
+\draw [->] (18) -- node[right,font=\footnotesize]{$\chi_2$} (15);
+\draw [->] (16) -- node[right,font=\footnotesize]{$\eta_1$} (10);
+\draw [->] (17) -- node[right,font=\footnotesize]{$\eta_2$} (11);
+\end{tikzpicture}
+\end{equation}
+
+The left side path model above shows that the variance of the M-P traits ($M$) is due to an extrinsic quality component ($Q$) and an intrinsic component ($G$), which includes genetic and developmental factors. Variation in the response to the same training is in $G$ while variation in training is in $Q$. The right side path model shows the decomposition of the $M$ into components due to $Q$ and $G$, so that the path coefficients $\delta$ from the left side model decomposed into $\alpha$ and $\beta$ in the right side model. In our text, and in the model below, we further simplify the right side by removing $M^Q_1$ and $M^Q_2$ as mediators, so that $Q$ directly links to $P_1$ and $P_2$ with effects $\alpha_1$ and $\alpha_2$. We show in the script below that this simplified model is precisely equivalent to both of the more complex models above.
+
+\begin{equation}
+\begin{tikzpicture}
+\node (1) {$M^G_1$};
+\node[right=of 1] (2) {$M^G_2$};
+\node[right=of 2] (3) {$Q$};
+\node[below= of 1] (4) {$P_1$};
+\node[below= of 3] (5) {$P_2$};
+\node[above=of 1] (6) {$G_1$};
+\node[above=of 2] (7) {$G_2$};
+\node[below=of 4] (8) {$U_1$};
+\node[below=of 5] (9) {$U_2$};
+\draw [->] (1) -- node[left,pos=.2,font=\footnotesize]{$\beta_{11}$} (4);
+\draw [->] (1) -- node[above,pos=.15,font=\footnotesize]{$\beta_{12}$} (5);
+\draw [->] (2) -- node[above,pos=.7,font=\footnotesize]{$\beta_{21}$} (4);
+\draw [->] (2) -- node[right,pos=.6,font=\footnotesize]{$\beta_{22}$} (5);
+\draw [->] (3) -- node[above,pos=.1,font=\footnotesize]{$\alpha_{1}$} (4);
+\draw [->] (3) -- node[right,pos=.1,font=\footnotesize]{$\alpha_{2}$} (5);
+\draw [->] (8) -- node[left,font=\footnotesize]{$\varepsilon_1$} (4);
+\draw [->] (9) -- node[right,font=\footnotesize]{$\varepsilon_2$} (5);
+\draw [->] (6) -- node[right,font=\footnotesize]{$\eta_1$} (1);
+\draw [->] (7) -- node[right,font=\footnotesize]{$\eta_2$} (2);
+\end{tikzpicture}
+\end{equation}
+
+<<Indirect effects of Q with M as a mediator>>=
+n <- 10^4
+Q <- rnorm(n) # Q is extrinsic quality
+G_1 <- rnorm(n) # G are the intrinsic factors contributing to M
+G_2 <- rnorm(n)
+# standard deviations of M due to Q and G are...
+chi_1 <- .1 # sd due to Q = unstandardized path coefficient from Q to M_1
+chi_2 <- .7 # sd due to Q = unstandardized path coefficient from Q to M_2
+eta_1 <- .6 # sd due to G = unstandardized path coefficient from G to M_1
+eta_2 <- .2 # sd due to G = unstandardized path coefficient from G to M_2
+M_1 <- chi_1*Q + eta_1*G_1 # centered but not standardized
+M_2 <- chi_2*Q + eta_2*G_2 # centered but not standardized
+# check the empirical and expected sd. Also need expected sd for later calcs
+sd_m1 <- sqrt(chi_1^2 + eta_1^2)
+sd_m1
+sd(M_1)
+sd_m2 <- sqrt(chi_2^2 + eta_2^2)
+sd_m2
+sd(M_2)
+#expected covar between M_1 and M_2
+chi_1*chi_2
+cov(M_1,M_2)
+#expected and empirical correlation between M_1 and M_2
+chi_1*chi_2/(sd_m1*sd_m2)
+cor(M_1,M_2)
+
+delta_11 <- -.4 # unstandardized path coefficient from M_1 to P_1
+delta_12 <- .3 # unstandardized path coefficient from M_1 to P_2
+delta_21 <- .5 # unstandardized path coefficient from M_2 to P_1
+delta_22 <- .6 # unstandardized path coefficient from M_2 to P_2
+epsilon_1 <- .3 # sd (or path coefficient) of unexplained error of P_1
+epsilon_2 <- .4 # sd (or path coefficient) of unexplained error of P_1
+U_1 <- rnorm(n)
+U_2 <- rnorm(n)
+P_1 <- delta_11*M_1 + delta_21*M_2 + epsilon_1*U_1
+P_2 <- delta_12*M_1 + delta_22*M_2 + epsilon_2*U_2
+# expected and empirical sd of P_1 and P_2
+sd_p1 <- sqrt(delta_11^2*sd_m1^2 + delta_21^2*sd_m2^2 +
+  2*delta_11*delta_21*chi_1*chi_2 + epsilon_1^2)
+sd_p1
+sd(P_1)
+sd_p2<- sqrt(delta_12^2*sd_m1^2 + delta_22^2*sd_m2^2 +
+  2*delta_12*delta_22*chi_1*chi_2 + epsilon_2^2)
+sd_p2
+sd(P_2)
+
+# decomposition of the variances, just checking
+sd_p1.Q <- sqrt(delta_11^2*chi_1^2 + delta_21^2*chi_2^2 + 
+    2*delta_11*delta_21*chi_1*chi_2)
+sd_p1.G <- sqrt(delta_11^2*eta_1^2 + delta_21^2*eta_2^2)
+sd_p1.U <- epsilon_1
+
+sd_p2.Q <- sqrt(delta_12^2*chi_1^2 + delta_22^2*chi_2^2 +
+    2*delta_12*delta_22*chi_1*chi_2)
+sd_p2.G <- sqrt(delta_12^2*eta_1^2 + delta_21^2*eta_2^2)
+sd_p2.U <- epsilon_2
+
+sd(P_1)
+sqrt(sd_p1.Q^2 + sd_p1.G^2 + sd_p1.U^2)
+sd_p1
+sd(P_2)
+sqrt(sd_p2.Q^2 + sd_p2.G^2 + sd_p2.U^2)
+sd_p2
+
+
+# full correlation path model
+delta_s_11 <- delta_11*sd_m1/sd_p1 # standardized
+delta_s_12 <- delta_12*sd_m1/sd_p2 # standardized
+delta_s_21 <- delta_21*sd_m2/sd_p1 # standardized
+delta_s_22 <- delta_22*sd_m2/sd_p2 # standardized
+chi_s_1 <- chi_1/sd_m1 # standardized
+chi_s_2 <- chi_2/sd_m2 # standardized
+
+# empirical correlations
+cor(P_1,P_2)
+# expected correlation
+delta_s_11*delta_s_12 + delta_s_21*delta_s_22 + delta_s_11*chi_s_1*chi_s_2*delta_s_22 + delta_s_12*chi_s_1*chi_s_2*delta_s_21
+
+# decomposition into intrinsic and extrinsic components
+# beta is the component due to G
+# alpha is the component due to Q
+beta_s_11 <- delta_11*eta_1/sd_p1 # standardized
+beta_s_12 <- delta_12*eta_1/sd_p2 # standardized
+beta_s_21 <- delta_21*eta_2/sd_p1 # standardized
+beta_s_22 <- delta_22*eta_2/sd_p2 # standardized
+
+alpha_s_11 <- delta_11*chi_1/sd_p1 # standardized
+alpha_s_12 <- delta_12*chi_1/sd_p2 # standardized
+alpha_s_21 <- delta_21*chi_2/sd_p1 # standardized
+alpha_s_22 <- delta_22*chi_2/sd_p2 # standardized
+
+# check to see if beta and alpha components sum equal to delta_s_11
+sqrt(beta_s_11^2 + alpha_s_11^2)
+delta_s_11
+
+# expected correlations
+r_beta <- beta_s_11*beta_s_12 + beta_s_21*beta_s_22 # due to beta
+# checking the math, should be equivalent
+r_beta <- delta_11*delta_12*eta_1^2/(sd_p1*sd_p2) +
+  delta_21*delta_22*eta_2^2/(sd_p1*sd_p2)
+# the 3rd and 4th parts use delta instead of alpha because the correlation between M_1 and M_2 requires all of the variance and not just that due to Q
+r_alpha <- alpha_s_11*alpha_s_12 + alpha_s_21*alpha_s_22 +
+  delta_s_11*chi_s_1*chi_s_2*delta_s_22 + 
+  delta_s_12*chi_s_1*chi_s_2*delta_s_21
+r_alpha
+# computing r_alpha without the standardized coefficients shows that sd_m1 and sd_m2 are in both num and denom and cancel
+# = r_alpha
+delta_11*delta_12*chi_1^2/(sd_p1*sd_p2) +
+  delta_21*delta_22*chi_2^2/(sd_p1*sd_p2) +
+  delta_11*sd_m1/sd_p1 * chi_1/sd_m1 * chi_2/sd_m2 * delta_22*sd_m2/sd_p2 +
+  delta_12*sd_m1/sd_p2 * chi_1/sd_m1 * chi_2/sd_m2 * delta_21*sd_m2/sd_p1
+# simplifying by removing M and directly linking Q to P_1 and P_2 with
+# coefficients alpha_1 and alpha_2 as sum of products along paths
+alpha_1 <- chi_1*delta_11/sd_p1 + chi_2*delta_21/sd_p1
+alpha_2 <- chi_1*delta_12/sd_p2 + chi_2*delta_22/sd_p2
+alpha_1*alpha_2 # = r_alpha
+
+# expected correlation not decomposed (left side)
+delta_s_11*delta_s_12 + delta_s_21*delta_s_22 + delta_s_11*chi_s_1*chi_s_2*delta_s_22 + delta_s_12*chi_s_1*chi_s_2*delta_s_21
+#expeced correlation decomposed (right side) - should be equivalent to above
+r_beta + r_alpha
+#empirical correlation
+cor(P_1,P_2)
+#expected functional correlation
+r_beta
+# empirical functional correlation
+cor(P_1,P_2) - r_alpha
+@
+
+\subsection{Effect of inter-trait correlation on functional correlation}
+
+\begin{equation} \label{eq:intro_e}
+  \begin{tikzpicture}
+		\node (1) {$M_1$};
+		\node[below right=of 1] (2) {$P_1$};
+		\node[right=of 2] (3) {$P_2$};
+		\node[above right=of 3] (4) {$M_2$};
+		\draw [->] (1) -- node[left,font=\footnotesize]{$\beta_{11}$} (2);
+		\draw [->] (1) -- node[above,font=\footnotesize]{$\beta_{12}$} (3);
+		\draw [->] (4) -- node[above,font=\footnotesize]{$\beta_{21}$} (2);
+		\draw [->] (4) -- node[right,font=\footnotesize]{$\beta_{22}$} (3);
+		\draw [->] (1) to[bend left=15] node[above,font=\footnotesize]{$r_{12}$} (4);
+		\draw [->] (4) [bend right=15] to (1);
+	\end{tikzpicture}
+ \end{equation}
+
+Demonstration that the correlation between $M_1$ and $M_2$ can reverse the sign of the functional correlation. The correlation between $M_1$ and $M_2$ is set by the effects ($\gamma_1$ and $\gamma_2$ of their common cause $Z$ on each.
+
+<<how a morphological r cancels a functional r>>=
+n <- 10^5 # n is the sample size
+gamma_1 <- .9 # this is the effect of the common cause Z on M_1
+gamma_2 <- -.9 # this is the effect of the common cause Z on M_2
+r_12 <- gamma_1*gamma_2 # the expected correlation between M_1 and M_2
+Z <- rnorm(n) # M is normally distributed with mean zero and sd = 1
+# M_1 and M_2 are normally distributed with mean zero and sd = 1
+M_1 <- gamma_1*Z + sqrt(1-gamma_1^2)*rnorm(n) 
+M_2 <- gamma_2*Z + sqrt(1-gamma_2^2)*rnorm(n) 
+beta_11 <- 0.6 # beta_1 is the path coefficient from M to P_1
+beta_12 <- -0.1 # beta_2 is the path coefficient from M to P_2
+beta_21 <- 0.1 # alpha_1 is the path coefficient from Q to P_1
+beta_22 <- -0.6 # alpha_2 is the path coefficient from Q to P_2
+# P_1 and P_2 are normaly distributed, centered at 0, and has unit sd.
+P_1 <- beta_11*M_1 + beta_21*M_2 + 
+  sqrt(1-beta_11^2 - beta_21^2 - 2*beta_11*beta_21*r_12)*rnorm(n) 
+P_2 <- beta_12*M_1 + beta_22*M_2 + 
+  sqrt(1-beta_12^2 - beta_22^2 - 2*beta_12*beta_22*r_12)*rnorm(n)
+
+#results
+apply(data.frame(M_1,M_2,P_1,P_2),2,var) # show variances ~ 1
+r_12 # the expected correlation between M_1 and M_2
+cor(M_1,M_2) # the sample correlation between M_1 and M_2
+# the expected performance correlation
+beta_11*beta_12 + beta_21*beta_22 + r_12*beta_11*beta_22 + r_12*beta_12*beta_21
+cor(P_1,P_2) # sample performance correlation
+beta_11*beta_12 + beta_21*beta_22 # the functional correlation component
+
+@
+
+
+\subsection{Misinterpretation of loadings}
+\begin{equation} \label{eq:problems_f}
+  \begin{tikzpicture}
+		\node (1) {$M_1$};
+		\node[right=of 1] (2) {$Q$};
+		\node[right=of 2] (3) {$M_2$};
+		\node[below left=of 1] (4) {$P_1$};
+		\node[right=of 4] (5) {$P_2$};
+		\node[right=of 5] (6) {$P_3$};
+		\node[right=of 6] (7) {$P_4$};
+		\node[right=of 7] (8) {$P_5$};
+		\draw [->] (1) to (4);
+		\draw [->] (1) to (5);
+		\draw [->] (1) to (6);
+		\draw [->] (2) to (4);
+		\draw [->] (2) to (5);
+		\draw [->] (2) to (6);
+		\draw [->] (2) to (7);
+		\draw [->] (2) to (8);
+		\draw [->] (3) to (7);
+		\draw [->] (3) to (8);
+	\end{tikzpicture}
+ \end{equation}
+
+This script explores PCs in 5 traits that are a function of a global, quality factor $Q$ with effect $\alpha$ and two local M-P traits with effects $\beta_1$ and $\beta_2$ that are each specific to a module. $P_1$ through $P_3$ form a module because $M_1$ affects these but not $P_4$ and $P_5$ while $M_2$ affects $P_4$ and $P_5$ but not $P_1$ through $P_3$. $P_4$ and $P_5$ form the second module The point is to show that the 2nd Principal component has loadings of opposite signs for performances in different modules despite there being \textbf{no} functional trade-off between performances in different modules.
+
+<<misinterpretation of eigenvalues>>=
+n <- 10^4 # sample size
+P <- matrix(0,nrow=n,ncol=5)
+Z <- rnorm(n) # the global factor 
+M1 <- rnorm(n) # local M-P trait
+M2 <- rnorm(n) # local M-P trait
+alpha <- 0.6 # effect of Z on P
+beta1 <- 0.4 # effect of M1 on module 1 P
+beta2 <- 0.3 # effect of M2 on module 2 P
+for(j in 1:3){
+  P[,j] <- alpha*Z + beta1*M1 + sqrt(1-alpha^2 - beta1^2)*rnorm(n)
+}
+for(j in 1:2){
+  P[,(j+3)] <- alpha*Z + beta2*M2 + sqrt(1-alpha^2-  beta2^2)*rnorm(n)
+}
+P <- scale(P) # center and variance standardize
+res <- eigen(cov(P)) # eigenvector decomposition
+E <- res$vectors
+L <- res$values
+scores <- P%*%E # the matrix of PCA scores
+loadings <- cor(P,scores) # the matrix of PCA loadings
+# L[1:3]/sum(L) # relative eigenvalue
+# loadings[,1:3]
+colnames(loadings) <- paste('PC',1:5,sep='')
+row.names(loadings) <- paste('P',1:5,sep='_')
+table_1 <- data.frame(round(loadings,2))[,1:3]
+table_1 <- rbind(L=round(L[1:3]/sum(L),2),table_1)
+table_1
+write.table(table_1,'loadings.txt',sep='\t',quote=FALSE)
+@
+
+\subsection{How a PC1 with \emph{all same-sign loadings} can emerge without there being a general factor that affects all traits}
+
+\begin{equation}
+  \begin{tikzpicture}
+		\node (1) {$P_1$};
+		\node[below=of 1] (2) {$P_2$};
+		\node[below right=of 2] (3) {$P_3$};
+		\node[right=of 3] (4) {$P_4$};
+		\node[right=of 4] (5) {$P_5$};
+  	\node[right=of 5] (6) {$P_6$};
+  	\node[right=of 6] (7) {$P_7$};
+  	\node[right=of 7] (8) {$P_8$};
+  	\node[above right=of 8] (9) {$P_9$};
+  	\node[above=of 9] (10) {$P_{10}$};
+  	\node[above right=of 1] (11) {$M_1$};
+    \node[above left=of 10] (12) {$M_2$};
+    \node[right=3cm of 11] (13) {$Q$};
+   
+		\draw [->] (11) to (1);
+  	\draw [->] (11) to (2);
+  	\draw [->] (11) to (3);
+  	\draw [->] (11) to (4);
+  	\draw [->] (11) to (5);
+  	\draw [->] (12) to (6);
+    \draw [->] (12) to (7);
+    \draw [->] (12) to (8);
+    \draw [->] (12) to (9);
+    \draw [->] (12) to (10);
+  	\draw [->] (13) to (3);
+  	\draw [->] (13) to (4);
+  	\draw [->] (13) to (5);
+  	\draw [->] (13) to (6);
+    \draw [->] (13) to (7);
+    \draw [->] (13) to (8);
+	\end{tikzpicture}
+ \end{equation}
+
+Script to explore the loadings on PC1 for 10 performance traits that are a function of two M-P traits and one quality trait, all of which are statistically independent of each other, and none of which are global. In the default, $Q$ has a small effect on \emph{a subset of the performance traits only} ($P_3$ through $P_8$), all in the same direction, $M_1$ has a moderate effect on $P_1$ through $P_5$, all in the same direction, and $M_2$ has a moderate effect on $P_6$ through $P_{10}$, all in the same direction. PC1 has loadings all of the same sign, despite there being no global variable. PC1 contains a mix of extrinisic quality and M-P trait variance.
+
+<<all positive PC1 but no global>>=
+n <- 10^5 # sample size
+n_p <- 10 # number of performance traits
+P <- matrix(0,nrow=n,ncol=n_p) # initialize the matrix of performance values
+# three independent, M-P traits
+M <- matrix(rnorm(n*3),nrow=n,ncol=3)
+# the effects of M-P traits on performance
+beta1 <- 0.25 # default .2 #effect of Q
+beta_pos <- 0.5 # default .5
+beta_neg <- -.0 # default 0
+beta1j <- c(rep(0,2),rep(1,6),rep(0,2))*beta1 # Q effects
+beta2j <- c(rep(beta_pos,5),rep(beta_neg,5)) # M1 effects
+beta3j <- c(rep(beta_neg,5),rep(beta_pos,5)) # M2 effects
+beta <- t(matrix(c(beta1j,beta2j,beta3j),nrow=10,ncol=3))
+P <- matrix(rnorm(n*3),nrow=n,ncol=3)%*%beta + 
+  sqrt(1-diag(t(beta)%*%beta))*matrix(rnorm(n*n_p),nrow=n,ncol=n_p)
+# are variances close to 1?
+diag(cov(P))
+
+P <- scale(P)
+res <- eigen(cov(P)) # eigenvector decomp
+E <- res$vectors 
+L <- res$values
+scores <- P%*%E # matrix of PCA scores
+loadings <- cor(P,scores) # matrix of PCA loadings
+# L[1:3]/sum(L) # relative eigenvalue
+# loadings[,1:3]
+colnames(loadings) <- paste('PC',1:10,sep='')
+row.names(loadings) <- paste('P',1:10,sep='_')
+table_1 <- data.frame(round(loadings,2))[,1:3]
+table_1 <- rbind(L=round(L[1:3]/sum(L),2),table_1)
+table_1
+write.table(table_1,'loadings.txt',sep='\t',quote=FALSE)
+
+# do WGS with bias correction
+R <- cor(P)
+alpha_hat <- matrix(loadings[,1],nrow=n_p,ncol=1)
+R_gs <- alpha_hat%*%t(alpha_hat) # expected correlations due to general size
+r_bar <- abs(mean(R[lower.tri(R)]))
+r_gs_bar <- abs(mean(R_gs[lower.tri(R_gs)]))
+wc <- r_bar/r_gs_bar # bias correction ratio due to Wright 1932
+R_gs_bc <- R_gs * wc # Wright's bias-correct correlations due to general size
+R_wgsbc <- R - R_gs_bc
+
+#R_wgsbc <- gwfa(P,which_size='pc1',bc='wright',b=0)$R_resid
+R_func <- t(beta[2:3,])%*%beta[2:3,] # net functional correlations
+error_table <- round(data.table(
+  wgsbc=R_wgsbc[lower.tri(R_wgsbc)],
+  net_func=R_func[lower.tri(R_func)]),2)
+
+# the table of estimated via WGS and true net functional correlations
+error_table
+@
+
+
+<<Analyze NCAA decathlon data, echo=FALSE>>=
+do_it <- function(){
+  # all the pre-processing that save files. These can be skipped by making these FALSE
+  clean_the_data <- FALSE # this is FALSE only if the raw data have not been read, cleaned, and merged
+  generate_max_file <- FALSE # if FALSE, need to generate the max performance file
+  simulate_the_data <- FALSE # if TRUE simulate data to get error intervals
+  compute_quant_table <- FALSE # if TRUE then compute quantiles of simulation data  
+  # clean_it reads in the separate Div 1,2, and 3 files and cleans and merges into the single file 'ncaa.2014.clean.txt'. Note that some times in the raw files hat ' HT' which was cleaned out by hand using textwrangler prior to running clean_it.
+
+  if(clean_the_data==TRUE){clean_it()}
+  
+  # generate_max_performance_data generates the file 'ncaa.max_perf.txt' of max performances for the cleaned data. For the run events, the performance is inverted into m/s instead of duration
+  if(generate_max_file == TRUE){generate_max_performance_file()}
+  
+  # read in the file of maximum performance data. This file will contain missing data
+  max_data <- data.table(read.table('ncaa.max_perf.txt',header=TRUE,sep='\t',colClasses=c(rep('factor',3),rep('numeric',10))))
+  # the data matrix. Only the 10 events and no NAs
+  event_data <- na.omit(as.matrix(extract_event_data(max_data)))
+  events <- colnames(event_data)
+  p <- length(events)
+  
+  # check distributions of each
+  par(mfrow=c(2,5))
+  for(which_event in events){
+#    hist(event_data[,which_event],xlab=which_event,main=which_event)
+  }
+  par(mfrow=c(1,1))
+  
+  
+  # compute the raw, pc1 residual, and bmgs correlation matrices
+  R_raw <- cor(event_data,use='pairwise.complete.obs')
+  R_pcor <- cor2pcor(R_raw)
+  colnames(R_pcor) <- colnames(R_raw)
+  row.names(R_pcor) <- colnames(R_raw)
+  R_cor_rr <- PC1_residuals(event_data) # correlation of the regression residuals
+
+  # show that cov(pc1 regression residuals) = bmgs with bm=FALSE
+  R_cov_rr <- PC1_residuals(event_data,standardize=FALSE) # covariance of the regression residuals
+  R_wgsuc <- gwfa(event_data,which_size='pc1',bc='none')$R_resid # uncorrected wgs
+
+  res_wgsbc <- gwfa(event_data,which_size='pc1',bc='wright')
+  R_wgsbc <- res_wgsbc$R_resid # BC wgs
+  wgsbc_alpha <- res_wgsbc$bc_alpha
+  R_quality <- wgsbc_alpha%*%t(wgsbc_alpha) # expected correlation due to Quality (PC1)
+  # table of alpha coefficients
+  wgsbc_alpha_table <- data.table(event=rownames(res_wgsbc$alpha_hat),alpha_hat=round(res_wgsbc$alpha_hat[,1],2),bc_alpha=round(res_wgsbc$bc_alpha[,1],2))
+  write.table(wgsbc_alpha_table,'table_alphas.txt',row.names=FALSE,quote=FALSE,sep='\t')
+  
+  # correlaiton between pcor and rr results
+  cor_data <- as.matrix(data.frame(pcor=R_pcor[lower.tri(R_pcor)],rr=R_cor_rr[lower.tri(R_cor_rr)]))
+  t(cor_data[,1])%*%cor_data[,2]/sqrt(t(cor_data[,1])%*%cor_data[,1])/sqrt(t(cor_data[,2])%*%cor_data[,2])
+
+  # repeat by looking only at signs and not magnitude
+  cor_data[cor_data>0] <- 1
+  cor_data[cor_data<0] <- -1
+ t(cor_data[,1])%*%cor_data[,2]/sqrt(t(cor_data[,1])%*%cor_data[,1])/sqrt(t(cor_data[,2])%*%cor_data[,2])
+  
+    
+  # heat map figures
+  R_raw_tile <- melt(R_raw)
+  colnames(R_raw_tile)[3] <- 'Pearson'
+  diag(R_pcor) <- 1.0
+  R_pcor_tile <- melt(R_pcor)
+  colnames(R_pcor_tile)[3] <- 'Pcor'
+  diag(R_cor_rr) <- 1.0
+  R_cor_rr_tile <- melt(R_cor_rr)
+  colnames(R_cor_rr_tile)[3] <- 'RR'
+  diag(R_wgsuc) <- 1.0
+  R_wgs_uc_tile <- melt(R_wgsuc)
+  colnames(R_wgs_uc_tile)[3] <- 'WGSUC'
+  diag(R_wgsbc) <- 1.0
+  R_wgs_bc_tile <- melt(R_wgsbc)
+  colnames(R_wgs_bc_tile)[3] <- 'WGSBC'
+  R_quality_tile <- melt(R_quality)
+  colnames(R_quality_tile)[3] <- 'R_q'
+  
+  R_tile <- merge(R_raw_tile,R_pcor_tile,by=c('Var1','Var2'))
+  R_tile <- merge(R_tile,R_cor_rr_tile,by=c('Var1','Var2'))
+  R_tile <- merge(R_tile,R_wgs_uc_tile,by=c('Var1','Var2'))
+  R_tile <- merge(R_tile,R_wgs_bc_tile,by=c('Var1','Var2'))
+  R_tile <- merge(R_tile,R_quality_tile,by=c('Var1','Var2'))
+  colnames(R_tile)[1:2] <- c('Event_A','Event_B')
+  R_tile <- data.table(R_tile)
+  R_tile[,Event_A:=reorder_event_levels(Event_A)]
+  R_tile[,Event_B:=reorder_event_levels(Event_B)]
+  
+  plot_fig_3(R_tile)
+  plot_fig_4(R_tile,axis_labels=c('D','SP','J','HJ','LJ','PV','110','100','400','1500'),fig_no='04')
+  
+  # compute and/or read in the simulated data used for the error distribution of the bmgs correlations
+  if(simulate_the_data==TRUE){
+    niter <- 2500
+    error_table <- simulate_data(event_data,res_wgsbc,btable,niter=niter)    
+    fout <- paste('simulated_decath_data_sub2.niter=',niter,'.txt',sep='')
+    write.table(error_table,fout,quote=FALSE,sep='\t')
+  }
+  error_table <- data.table(read.table('simulated_decath_data_sub2.niter=2500.txt',header=TRUE))
+
+  # compute and/or read in the table of quantile regression functions (the functions are just functions at different levels of R_est)
+  if(compute_quant_table==TRUE){
+    # write the table of .05, .5, .095 quantiles  for simulate data
+    compute_quantile_regression_table(error_table)  
+  }
+  quant_table <- data.table(read.table('quant.table.n=50000',header=TRUE))
+
+  plot_fig_5(error_table,quant_table, fig_no='05')
+   
+  # generate tables of correlations and errors
+
+  R_table <- lower_list(R_tile,R_tile[,Event_A],R_tile[,Event_B])
+ 
+ #centered_ci <- quantile(error_table[method=='wgsbc',error],c(0.025,0.975))
+  R_table[,Lower:=spline(quant_table[,xx0.025],quant_table[,fv0.025],method='fmm',xout=WGSBC)$y]
+  R_table[,Upper:=spline(quant_table[,xx0.975],quant_table[,fv0.975],method='fmm',xout=WGSBC)$y]
+  write.table(R_table,'R_table.txt',quote=FALSE,sep='\t')
+  
+  # read and format R_table to 2 dec places
+  R_table <- data.table(read.table('R_table.txt',header=TRUE))
+  R_table_form <- R_table[,list(Event_A,Event_B,Pearson=round(Pearson,2),Pcor=round(Pcor,2),RR=round(RR,2),WGSUC=round(WGSUC,2),WGSBC=round(WGSBC,2),Lower=round(Lower,2),Upper=round(Upper,2))]
+  write.table(R_table_form,'R_table_form.txt',quote=FALSE,sep='\t',row.names=FALSE)
+  
+  #descriptive stats
+  range(R_table[,Pearson])
+  range(R_table[,WGSBC])
+  
+}
+
+generate_max_performance_file <- function(){
+  full_data <- data.table(read.table('ncaa.2014.clean.txt',header=TRUE,sep='\t',colClasses=c(rep('factor',5),rep('numeric',10))))
+  
+  # get max perf for each individual
+  max_data <- full_data[,list(.N,speed_100m=100/min(run_100m,na.rm=TRUE),speed_400m=400/min(run_400m,na.rm=TRUE),speed_1500m=1500/min(run_1500m,na.rm=TRUE),speed_110h=110/min(run_110h,na.rm=TRUE),high_jump=max(high_jump,na.rm=TRUE),pole_vault=max(pole_vault,na.rm=TRUE),long_jump=max(long_jump,na.rm=TRUE), shot_put =max(shot_put,na.rm=TRUE),discus=max(discus,na.rm=TRUE), javelin =max(javelin,na.rm=TRUE)),by=list(Name,division)]
+  # replace the -Inf with NA
+  max_data[max_data== -Inf] <- NA
+  max_data[max_data==0] <- NA
+
+	write.table(max_data,'ncaa.max_perf.txt',sep='\t',row.names=FALSE,quote=FALSE)
+}
+
+extract_event_data <- function(max_data){
+  return(max_data[,list(speed_100m,speed_400m,speed_1500m,speed_110h,high_jump,long_jump,pole_vault,shot_put,discus,javelin)])
+}
+
+reorder_method_levels <- function(res){
+  # very specific function
+  # res is the results data.table to reorder the levels
+  # target is the desired order of the Method levels
+  
+  res[method=='RR',method:='rr']
+  res <- res[,method:=factor(method)]
+  new_order <- c(which(levels(res[,method])=='pcor'),
+                 which(levels(res[,method])=='rr'),
+                 which(levels(res[,method])=='wgsuc'),
+                 which(levels(res[,method])=='wgsbc'),
+                 which(levels(res[,method])=='Pearson')
+  )
+  res <- res[,method:=factor(res[,method],levels(res[,method])[new_order])]
+  return(res)
+}
+
+reorder_event_levels <- function(f){
+  # f is the column with the events as a factor
+  new_order <- c(which(levels(f)=='discus'),
+                 which(levels(f)=='shot_put'),
+                 which(levels(f)=='javelin'),
+                 which(levels(f)=='high_jump'),
+                 which(levels(f)=='long_jump'),
+                 which(levels(f)=='pole_vault'),
+                 which(levels(f)=='speed_110h'),
+                 which(levels(f)=='speed_100m'),
+                 which(levels(f)=='speed_400m'),
+                 which(levels(f)=='speed_1500m')
+  )
+  f.o <- factor(f,levels(f)[new_order])
+  return(f.o)
+}
+
+lower_list <- function(tt,e1,e2){
+  # tt is a data.table with all pairwise correlations. lower results in only the lower diag of these.
+  events <- levels(e1)
+  inc <- NULL
+  for(i in 2:length(events)){
+    for(j in 1:(i-1)){
+      inc <- c(inc,which(e1==events[i] & e2==events[j]))
+    }
+  }
+  short <- tt[inc,]
+  return(short)
+}
+
+
+# meaning of small correlation
+small_r_interpretation <- function(){
+  event_sd <- apply(event_data,2,sd)
+  r <- -0.07 #-.02
+  event1 <- 'speed_100m'
+  event2 <- 'speed_1500m'
+  time_100 <- 1/event_data[,event1]*100 # duration of 100m
+  time_1500 <- 1/event_data[,event2]*1500 # duration of 100m
+  sd100 <- sd(time_100)
+  sd1500 <- sd(time_1500)
+  change_in_100_given_sd_increase_in_1500 <- r*sd100*2 # two standard deviations faster takes you from the middle of the pack to near the front (top 2.5%), so if this is causal then modifying underlying M-P to increase 1500 to elite would decrease 100 m by -0.064s.
+
+}
+@
+
+<<Clean Data, echo=FALSE>>=
+convert_time_2_decimal <- function(time){
+  # The data are from the TFRRS site and are the best decathlon times for each event for the year.
+  # if 400m value > 60s then it is in m:s format and needs to be converted to decimal s format
+  if(nchar(as.character(time)) > 5){ # then its in m:s format
+    x <- strptime(as.character(time),format='%M:%OS')
+		time <- as.character(x$min*60 + x$sec)
+	}
+	return(time)
+}
+
+
+read_file <- function(fn){
+  lines <- readLines(fn)
+	nlines <- length(lines)
+	ll <- numeric(nlines)
+	for(i in 1:nlines){
+		ll[i] <- length(as.character(strsplit(lines[i],"\t")[[1]]))
+	}
+	player_lines <- which(ll==1)
+	nplayers <- length(player_lines)
+  data <- data.table(NULL)
+  for(player in 1:nplayers){
+    i <- player_lines[player]
+    name <- as.character(strsplit(lines[i],"\t")[[1]])
+    col_names <- tolower(as.character(strsplit(lines[i+1],"\t")[[1]]))
+    col_names <- sub(' ','',col_names)
+    # get seasons, which is the number of rows of data
+    if(player < nplayers){seasons <- player_lines[player +1]-player_lines[player]-2}else{seasons <- nlines-player_lines[player]-1}
+    txt <- matrix("",nrow=seasons,ncol=length(col_names))
+    colnames(txt) <- col_names
+    for(j in 1:seasons){
+      tarray <- as.character(strsplit(lines[i+1+j],"\t")[[1]])
+      txt[j,1:length(tarray)] <- as.character(strsplit(lines[i+1+j],"\t")[[1]])
+    }
+    
+
+    # extract the row year/sport/class information, which are in the first 3 columns
+    row_info <- data.table(txt[,1:3])
+    if(seasons==1){row_info <- data.table(t(data.frame(row_info)))}
+    setnames(row_info,colnames(txt)[1:3])
+   
+    # extract performance matrix, which is everything but first 3 columns
+    mat <- txt[,4:length(col_names)]
+    if(seasons==1){mat <- as.matrix(t(data.frame(mat)))}
+    mat <- sub(' -- --','NA',mat)
+    mat <- sub('m','',mat)
+    
+    if(is.element('400m',colnames(mat))){mat[,'400m'] <- sapply(mat[,'400m'],convert_time_2_decimal)}
+    if(is.element('1500m',colnames(mat))){
+      x <- strptime(as.character(mat[,'1500m']),format='%M:%OS')
+      mat[,'1500m'] <- as.character(x$min*60 + x$sec)
+    }
+    if(is.element('1000m',colnames(mat))){
+      x <- strptime(as.character(mat[,'1000m']),format='%M:%OS')
+      mat[,'1000m'] <- as.character(x$min*60 + x$sec)
+    }
+    
+    
+    decath <- data.table(matrix(-9999,nrow=dim(mat)[1],ncol=10))
+    setnames(decath,c('run_100m','run_400m','run_1500m','run_110h','high_jump','pole_vault','long_jump','shot_put','discus','javelin'))
+    for(col_j in colnames(mat)){
+      if(col_j=='100m'){decath[,run_100m := mat[,col_j]]}
+      if(col_j=='400m'){decath[,run_400m := mat[,col_j]]}
+      if(col_j=='1500m'){decath[,run_1500m := mat[,col_j]]}
+      if(col_j=='110h'){decath[,run_110h := mat[,col_j]]}
+      if(col_j=='high jump'){decath[,high_jump := mat[,col_j]]}
+      if(col_j=='pole vault'){decath[,pole_vault := mat[,col_j]]}
+      if(col_j=='long jump'){decath[,long_jump := mat[,col_j]]}
+      if(col_j=='shot put'){decath[,shot_put := mat[,col_j]]}
+      if(col_j=='discus'){decath[,discus := mat[,col_j]]}
+      if(col_j=='javelin'){decath[,javelin := mat[,col_j]]}
+    }
+    decath[decath==-9999] <- NA
+    
+    df <- data.table(Name=rep(name,seasons),row_info,decath)
+    data <- rbind(data,df)
+  }
+  
+  
+	
+	# get rid of indoor
+	data <- data.table(data)
+	data <- data[data[,sport]==' OUTDOOR',]
+	return(data)
+}
+
+clean_it <- function(){
+  
+	# start with qualifying data for each year from TFRRS site
+	fnlist <- c(
+		'ncaa_div_1_2014.txt',
+		'ncaa_div_2_2014.txt',
+		'ncaa_div_3_2014.txt'
+	)
+	divlist <- c('D1','D2','D3','AllD')
+	data <- data.table(NULL)
+	for(i in 1:length(fnlist)){
+		fn <- fnlist[i]
+		subdata <- data.table(division=divlist[i],read_file(fn))
+		data <- rbind(data,subdata)
+	}
+	
+
+	write.table(data,'ncaa.2014.clean.txt',sep='\t',row.names=FALSE,quote=FALSE)
+}
+
+@
+
+<<analysis functions, echo=FALSE>>=
+
+standardize <- function(X){
+  # the scale function does not divide by the standard deviation if the data are not centered. This function does.
+  return(scale(X,center=FALSE,scale=apply(X,2,sd,na.rm=TRUE)))
+}
+
+geom_mean <- function(x){
+  xbar <- exp(mean(log(x)))
+  return(xbar)
+}
+
+general_size_vector <- function(R,method='min_range'){
+  # returns the eigenvector of the correlation matrix R identified as the general size vector
+  p <- dim(R)[2]
+  E <- eigen(R)$vectors
+  coef_sd <- apply(E,2,sd)
+	vec_range <- apply(E,2,function(x) max(x)-min(x))
+	min_range_vector <- which(vec_range==min(vec_range))  
+	min_sd_vector <- which(coef_sd==min(coef_sd))  
+	all_pos_vector <- which(apply(E,2,function(x) abs(sum(sign(x))))==p)
+  
+	ID <- min_range_vector # min_range finds it better than all_pos because sometimes the vector is not all pos!
+  if(t(E[,ID])%*%rep(1,p) < 0){E[,ID] <- -E[,ID]}
+  return(E[,ID])
+}
+
+random.sign <- function(u){
+  out <- sign(runif(u)-0.5)
+	#randomly draws from {-1,1} with probability of each = 0.5
+	return(out)
+}
+
+fit_bias <- function(p,sigma,mu,which_size='pc1',niter=100){
+  # fit a model of the bias in estimating alpha - the global general size factor - given p and sigma
+  # if alpha_hat^2 <= 0.2 then alpha <- 0
+  # which_size can bet the eigenvector id'd as the gs_vector, the row sums, or the row geometric means
+  n <- 10^4
+  alpha_array <- c(0,0.1,0.2,0.3,0.5,0.7,0.9)
+  fit_table <- data.table(NULL)
+  for(alpha in alpha_array){
+    for (iter in 1:niter){
+      done <- FALSE
+      while(done==FALSE){
+        Size <- matrix(rnorm(n),nrow=n,ncol=p)
+        Epsilon <- matrix(rnorm(n*p),nrow=n)
+        X <- t(t(alpha*Size + sqrt(1-alpha^2)*Epsilon)*sigma + mu)
+        X <- standardize(X)   
+        if(min(X)>0){done <- TRUE}
+      }
+      if(which_size=='pc1'){
+        E <- eigen(cor(X))$vectors
+        vec_range <- apply(E,2,function(x) max(x)-min(x))
+        min_range_vector <- which(vec_range==min(vec_range))  
+        G_vector <- min_range_vector
+        e <- E[,G_vector]
+        est_size <- X%*%e # scores on "general size" PC, this is the "general size factor"
+      }
+      if(which_size=='tss'){
+        est_size <- apply(X,1,sum) # row counts
+      }
+      if(which_size=='gms'){
+        est_size <- apply(X,1,geom_mean)
+      }
+      alpha_hat_array <- t(cor(est_size,X)) # loadings as COR(PC1, X)
+      alpha_hat <- abs(mean(alpha_hat_array))
+      alpha_hat_sqr <- alpha_hat^2
+      fit_table <- rbind(fit_table,data.table(alpha=alpha,alpha_sqr=alpha^2,alpha_hat=alpha_hat,alpha_hat_sqr=alpha_hat_sqr,alpha_hat_sqr_sqr=alpha_hat_sqr^2))
+    }
+  }
+  fit <- lm(alpha_sqr~alpha_hat_sqr+alpha_hat_sqr_sqr,data=fit_table)
+  b <- summary(fit)$coefficients[,1]
+  return(b)
+}
+
+
+gwfa <- function(X,which_size='pc1',fit,bc='none',b=0){ # generalized wright factor analysis
+   # X is the input n x p matrix of p traits for n individuals
+  # X cannot be row normalized
+  # method: pc1=general size eigenvector, tss = sum size vector, mrs 
+  # fit is the returned object from fit_bias2
+  # bc is "bias-correct", which can be 'none', 'wright', or 'bm' where bm = bias-model
+  # b is the row of b_table for p=p
+  X_s <- standardize(X)
+  R <- cor(X,use='pairwise.complete.obs')
+  p <- dim(X)[2]
+  
+  if(which_size=='pc1'){
+    e <- general_size_vector(R)
+    est_size <- X_s%*%e # scores on "general size" PC, this is the "general size factor"
+  }
+  if(which_size=='tss'){
+    est_size <- apply(X_s,1,sum) # row counts
+  }
+  if(which_size=='gms'){# assumes X is lognormal
+    est_size <- apply(X_s,1,geom_mean) # geometric mean   
+  }
+  if(which_size=='clr'){# assumes X is lognormal
+    gms <- apply(X_s,1,geom_mean)
+    X_gms <- X_s/gms
+    # apply(X.gms,1,geom_mean)# check
+    est_size <- apply(log(X_gms),1,median)
+    X_s <- standardize(log(X))
+  }
+  if(which_size=='mrs_gm'){# assumes X is lognormal
+    est_size <- mrs_gm(X_s) # median ratio size using the geometric mean
+  }
+  if(which_size=='mrs_am'){# assumes X is Normal
+    est_size <- mrs_am(X_s) # median ratio size using the arithmetic mean
+  }
+  
+  # alpha_hat is the correlation between size and X so sqrt of this is alpha_hat
+  alpha_hat <- t(cor(est_size,X_s,use='pairwise.complete.obs')) # loadings as COR(PC1, X)
+  sigma_hat <- apply(X,2,function(x) sd(x,na.rm=TRUE))
+  bc_alpha <- NULL
+  R_gs <- alpha_hat%*%t(alpha_hat) # the expected correlation due to general size
+
+  if(bc=='none'){
+    R_resid <- R - R_gs   
+  }
+  if(bc=='wright'){
+    r_bar <- abs(mean(R[lower.tri(R)]))
+    r_gs_bar <- abs(mean(R_gs[lower.tri(R_gs)]))
+#    r_bar <- mean(abs(R[lower.tri(R)]))
+#    r_gs_bar <- mean(abs(R_gs[lower.tri(R_gs)]))
+    wc <- r_bar/r_gs_bar # bias correction ratio due to Wright 1932
+    R_gs_bc <- R_gs * wc # Wright's bias-correct correlations due to general size
+    R_resid <- R - R_gs_bc
+    
+    # wright's bias-corrected alpha
+    bc_alpha <- alpha_hat*sqrt(wc)
+    #R_gs_bc2 <- bc_alpha%*%t(bc_alpha) # check!
+    
+  }
+  if(bc=='bm'){
+    if(length(b)==1){
+      # model using the spline surface fit of true r as a function of alpha_hat and estimated r
+      # the model estimates the error in the residual R as a function of the residual r and the estimated alpha. Then it subtracts this modeled error.
+      # this makes sense if the model is using local factors because there is no effect of r_hat if there is only a global factor (there is no bias)
+      R_resid <- R - R_gs
+      rc <- predict(fit,x=data.table(alpha=mean(alpha_hat),r_hat=R_resid[lower.tri(R_resid)]))
+      error_mat <- reverse.lower.tri(p,rc)
+      R_resid <- R_resid - error_mat     
+    }
+    if(length(b)==3){
+      #test
+      
+      # original model of a squared true alpha as a function of alpha_hat
+      # this makes sense only if the model uses alpha only
+      bc_r <- b[1] + b[2]*alpha_hat^2 + b[3]*alpha_hat^4
+      bc_r[bc_r < 0] <- 0
+      bc_alpha <- sqrt(bc_r)
+      R_gs <- bc_alpha%*%t(bc_alpha) # the bias corrected estimated R due to general size
+      R_resid <- R - R_gs
+    }
+  }
+  
+  return(list(R_resid=R_resid,bc_alpha=bc_alpha,alpha_hat=alpha_hat))
+}
+
+PC1_residuals <- function(X,standardize=TRUE){
+  R <- cor(X,use='pairwise.complete.obs')
+  n <- dim(X)[1]
+  p <- dim(X)[2]
+  X_s <- scale(X)
+  e <- general_size_vector(R)
+  est_size <- X_s%*%e # scores on "general size" PC, this is the "general size factor"
+  pc1_residuals <- matrix(0,nrow=n,ncol=p)
+  for(j in 1:p){
+    fit <- lm(X_s[,j]~est_size, na.action='na.exclude')
+    pc1_residuals[,j] <- residuals(fit)
+  }
+  if(standardize==TRUE){
+    R.pc1 <- cor(pc1_residuals,use='pairwise.complete.obs')
+  }else{
+    R.pc1 <- cov(pc1_residuals,use='pairwise.complete.obs')
+  }
+  colnames(R.pc1) <- colnames(R)
+  rownames(R.pc1) <- rownames(R)
+  return(R.pc1)
+}
+
+compute_quantile_regression_table <- function(error_table){
+  x <- error_table[method=='wgsbc',R_est]
+  y <- error_table[method=='wgsbc',R_true]
+  n_sample <- 50000
+  inc <- sample(1:length(x),n_sample)
+  subx <- x[inc]
+  suby <- y[inc]
+  h <- 0.25
+  quants <- c(.025,.5,.975)
+  quant_table <- NULL
+  for(q in quants){
+    fit <- lprq(subx,suby,h=h,tau=q)
+    xx <- fit$xx
+    fv <- fit$fv
+    sub_table <- data.table(xx=xx,fv=fv)
+    setnames(sub_table,c(paste('xx',q,sep=''),paste('fv',q,sep='')))
+    if(q==quants[1]){
+      quant_table <- sub_table}
+    else{quant_table <- cbind(quant_table,sub_table)}
+  }
+  quant_table[,lower:=xx0.975-fv0.975]
+  quant_table[,upper:=xx0.025-fv0.025]
+  write.table(quant_table,paste('quant.table.n=',n_sample,sep=''),quote=FALSE,sep='\t')  
+}
+
+@
+
+
+<<simulation code, echo=FALSE>>=
+error_from_correlation_matrix <- function(R_est,R_known){
+  error <- R_est[lower.tri(R_est)] - R_known[lower.tri(R_known)]
+  return(error)
+}
+
+expected.R <- function(M,exclude_global=FALSE){
+  # returns the expected correlations due to the factor mapping structure (see note at end)
+  # M is the mapping matrix from a set of factors to a set of traits
+  # The first row is the set of global alpha coefficients
+  # if exclude_global is TRUE then the first row is replaced by zeros to get the expected correlations due only to the local factors
+  if(exclude_global==TRUE){
+    M[1,] <- 0.0
+  }
+  R <- t(M)%*%M
+  return(R)
+  
+  # this E(R) assumes no correlation between the common factors. If this isn't the case then
+  # E(R) = t(M)%*%E[COR(X)]%*%M where X are the factors
+}
+modular.fake.data <- function(n,M,method='quick'){
+  # formula : X = VM
+  # X is the n X p data matrix with a correlation structure determined by M 
+  # V is the n X m matrix of underlying factor values.
+  # M is the m X p matrix of mapping coefficients. This is the F matrix in Ghalambor et al 2004
+  # n : number of individuals (rows of X and V)
+  # p : number of traits (columns of X and M)
+  # m : number of factors (columns of V and rows of M)
+  
+  sigma <- expected.R(M,exclude_global=FALSE) # diagonals will be less than 1 if R2 < 1
+  R2 <- diag(sigma) # the variance explained by the factors
+  if(method=='quick'){
+    # if my faster code
+    m <- dim(M)[1]
+    p <- dim(M)[2]
+    V <- matrix(rnorm(n*m),nrow=n)
+    E <- matrix(rnorm(n*p),nrow=n)
+    X <- V%*%M + E * t(matrix(sqrt(1-R2),nrow=p,ncol=n))
+    diag(sigma) <- 1
+
+    # get size free X
+    # what is R2? If it is the R2 from above then the noise will be proportionally bigger relative to the effect but if R2 is recomputed then the local coefficients will effectively be bigger. For the PLOS submissions 1 and 2 I chose not to rescale local coefficients but that must be correct in order to make sample error correct
+    sigma <- expected.R(M,exclude_global=FALSE) # diagonals will be less than 1 if R2 < 1
+    R_exp_sf <- expected.R(M,exclude_global=TRUE)
+    R2 <- diag(sigma) # the variance explained by the factors
+    R2_sf <- diag(R_exp_sf)
+    if(m==2){
+      X_sf <- as.matrix(V[,-1])%*%t(as.matrix(M[-1,])) + E * t(matrix(sqrt(1-R2),nrow=p,ncol=n))
+    }else{
+      X_sf <- V[,-1]%*%M[-1,] + E * t(matrix(sqrt(1-R2),nrow=p,ncol=n))    
+    }
+    adj <- diag(sqrt(R2/R2_sf))
+    # cor(X_sf)
+    R_sf <- adj%*%R_exp_sf%*%adj # !BAM!
+
+    
+  }else{ # use rmvnorm
+    diag(sigma) <- 1
+    X <- rmvnorm(n, sigma=sigma)
+  }
+  rownames(X) <- paste('Indiv',seq(1:n),sep='_')
+  return(list(X=X,X_sf=X_sf,R_sf=R_sf,sigma=sigma,M=M,size=V[,1]))
+}
+
+fit_factor_matrix <- function(R,alpha){
+  # finds the m, the number of factors generating correlations in a simulated correlation matrix, so that the mean and sd of correlations in the simulated matrix match that of the input (empirical) matrix.
+  # R is the input (empirical) matrix
+  # alpha is the mean estimated alpha from the empirical data
+  R_vec <- R[lower.tri(R)] # the correlations in vector format
+  R_bar <- mean(abs(R_vec)) # mean absolute correlation
+  R_sd <- sd(abs(R_vec)) # sd absolute correlation
+  p <- dim(R)[1]
+  
+  m_array <- seq(2,100,5)
+  R_sim_bar <- NULL
+  R_sim_sd <- NULL
+  niter <- 500
+  for(m in m_array){
+    m_bar <- 0.0
+    m_sd <- 0.0
+    for(iter in 1:niter){
+      Mo <- matrix(rexp(p*m,1)*random.sign(p*m),nrow=m,ncol=p)
+      # scale the coefficients to root sum square (rss) = 1
+      rss <- apply(Mo,2,function(x) sqrt(sum(x^2)))
+      M <- t(t(Mo)/rss)
+      # t(M)%*%M #check to see if diagonal = 1
+      # apply(M,2,function(x) sum(x^2))
+      
+      # and rescale to 1-alpha^2 - epsilon^2
+      epsilon <- sqrt(0.05) # epsilon^2 is the unexplained R^2
+      M <- t(t(M)*sqrt(1-alpha^2-epsilon^2))
+      # t(M)%*%M  # check that diagonal = 1-alpha^2 - epsilon^2
+      # apply(M,2,function(x) sum(x^2))
+      R_sim <- t(M)%*%M
+      R_sim_vec <- R_sim[lower.tri(R_sim)] # the correlations in vector format
+      m_bar <- m_bar + mean(abs(R_sim_vec))/niter # this will generate the mean at m=m
+      m_sd <- m_sd + sd(abs(R_sim_vec))/niter # this will generate the sd at m=m
+    }
+    R_sim_bar <- c(R_sim_bar,m_bar) # mean absolute correlation
+    R_sim_sd <- c(R_sim_sd,m_sd) # sd absolute correlation
+  }
+#  plot(R_sim_bar,m_array)
+#  plot(m_array,R_sim_bar)
+  est_m_from_bar <- spline(R_sim_bar,m_array,method='fmm',xout=R_bar)$y
+  est_m_from_sd <- spline(R_sim_sd,m_array,method='fmm',xout=R_sd)$y
+  m <- round((est_m_from_bar + est_m_from_sd)/2)
+  R_sim_bar_m <- spline(m_array,R_sim_bar,method='fmm',xout=m)$y # estimated mean cor at m
+  R_sim_sd_m <- spline(m_array,R_sim_sd,method='fmm',xout=m)$y # estimated mean sd at m
+  return(list(m=m,R_emp_bar=R_bar,R_emp_sd=R_sd,R_sim_bar=R_sim_bar_m,R_sim_sd=R_sim_sd_m))
+}
+
+construct_M_matrix <- function(p,m,alpha,epsilon=0.05){
+  # the mapping coefficients come from an exponental distribution
+  M <- matrix(rexp(p*m,1)*random.sign(p*m),nrow=m,ncol=p)
+  # scale the coefficients to root sum square (rss) = 1
+  rss <- apply(M,2,function(x) sqrt(sum(x^2)))
+  M <- t(t(M)/rss)
+  # t(M)%*%M #check to see if diagonal = 1
+  # apply(M,2,function(x) sum(x^2))
+  # and rescale to 1-alpha^2 - epsilon^2
+  M <- t(t(M)*sqrt(1-alpha^2-epsilon^2))
+  # t(M)%*%M  # check that diagonal = 1-alpha^2 - epsilon^2
+  # apply(M,2,function(x) sum(x^2))
+  # add Size factor to the M matrix
+  M <- rbind(alpha,M) # alpha inserted as first row of M
+  # t(M)%*%M # check that diagonal = 1-epsilon^2
+  # apply(M,2,function(x) sum(x^2))
+  return(M)
+}
+
+simulate_data <- function(data,wgs_fit,btable,niter=100){
+  
+  # modification of simulate_abundance from bcpc1 code
+  # the difference is to model real data with mean vector mu and sd vector sigma
+  # the empirical data is input and mu, sigma, n, p, m, and alpha are all determined from this. 
+  # m (the number of factors creating correlations) is estimated by examining the residual correlation
+  # alpha is estimated using the data
+  
+  n <- dim(data)[1]
+  p <- dim(data)[2]
+  mu <- apply(data,2,function(x) mean(x,na.rm=TRUE))
+  sigma <- apply(data,2,function(x) sd(x,na.rm=TRUE))
+  epsilon <- sqrt(0.05) # epsilon^2 is the unexplained R^2 used for computing M
+  n_off_diag <- p*(p-1)/2 # the number of elements in the lower-triangular matrix
+  R.raw <- cor(data)
+    
+  R_resid <- wgs_fit$R_resid
+  bc_alpha <- wgs_fit$bc_alpha[,1]
+  # could also do TSS and GMS fits
+  
+  M_fit <- fit_factor_matrix(wgs_fit$R,rep(0,p)) # fit for size-contaminated data
+  m_sf <- M_fit$m
+  M_fit <- fit_factor_matrix(R_resid,bc_alpha) # fit for size-contaminated data
+  m <- M_fit$m # m is 19 for decathlon data
+  alpha <- bc_alpha
+  
+  error_table <- data.table(NULL)
+  for(iter in 1:niter){
+    pos_X <- FALSE
+    while(pos_X==FALSE){
+      M <- construct_M_matrix(p,m,alpha,epsilon=0.05)
+      res <- modular.fake.data(n,M,method='quick')
+      Xo <- res$X # the fake data, which is asymptotically standardized to sd=1
+      colnames(Xo) <- paste('P',seq(1:p),sep='_')
+      # transform to mean=mu and sd=sigma
+      X <- t(t(Xo)*sigma + mu)
+
+      M_sf <- construct_M_matrix(p,m_sf,alpha=rep(0,p),epsilon=0.05)
+      res_sf <- modular.fake.data(n,M_sf,method='quick')
+      Xo_sf <- res_sf$X # the fake data, which is asymptotically standardized to sd=1
+      colnames(Xo_sf) <- paste('P',seq(1:p),sep='_')
+      # transform to mean=mu and sd=sigma
+      X_sf <- t(t(Xo_sf)*sigma + mu)
+
+      if(min(X)>0){pos_X <- TRUE}
+    }
+ 
+    #compare distribution of raw correlations in R.raw and R.X
+    #R.X <- cor(X)
+    #hist(R.raw[lower.tri(R.raw)],breaks=seq(0,1,by=.1))
+    #hist(R.X[lower.tri(R.X)],breaks=seq(0,1,by=.1))
+    
+    Y <- X
+    # No transform into lognormal (Y) space (the "measured" space)
+    R_exp_global <- expected.R(M,exclude_global=FALSE) #expected correlations including global size factor
+    R_exp_local <- expected.R(M,exclude_global=TRUE) #expected size-free correlation matrix
+    R_true <- R_exp_local[lower.tri(R_exp_local)] # the vectorized expected size-free correlations
+    mean_r_local <- mean(abs(R_true)) # mean r in expected size-free matrix
+    R_exp_local_adj <- expected.R(M_sf,exclude_global=TRUE)# compare R_sf to this
+    
+    # check
+    #eigen(cor(Y))$vectors[,1]
+    
+    # get size-free R
+    Y_sf <- X_sf # see explanation above
+    R_sf <- cor(Y_sf) # actual size-free correlation matrix (same as cor(X_sf))    
+    
+    R_res <- cor(X) # Pearson correlations to compare the distribution with ncaa distribution
+    R_est <- R_res[lower.tri(R_res)] # the vectorized expected size-free correlations
+    sub_table <- data.table(cell=1:n_off_diag,R_true=R_true,method='Pearson',R_est=R_est,error=error_from_correlation_matrix(R_sf,R_exp_local_adj))
+    if(iter==1){error_table <- sub_table}else{error_table <- rbind(error_table,sub_table)}
+        
+    R_res <- gwfa(Y,which_size='pc1',bc='wright',b=btable[,'pc1'])$R_resid
+    R_est <- R_res[lower.tri(R_res)] # the vectorized expected size-free correlations
+    sub_table <- data.table(cell=1:n_off_diag,R_true=R_true,method='wgsbc',R_est=R_est,error=error_from_correlation_matrix(R_res,R_exp_local))
+    error_table <- rbind(error_table,sub_table)
+
+    R_res <- gwfa(Y,which_size='pc1',bc='none',b=btable[,'pc1'])$R_resid
+    R_est <- R_res[lower.tri(R_res)] # the vectorized expected size-free correlations
+    sub_table <- data.table(cell=1:n_off_diag,R_true=R_true,method='wgsuc',R_est=R_est,error=error_from_correlation_matrix(R_res,R_exp_local))
+    error_table <- rbind(error_table,sub_table)
+
+    R_res <- PC1_residuals(Y,standardize=TRUE)
+    R_est <- R_res[lower.tri(R_res)] # the vectorized expected size-free correlations
+    sub_table <- data.table(cell=1:n_off_diag,R_true=R_true,method='RR',R_est=R_est,error=error_from_correlation_matrix(R_res,R_exp_local))
+    error_table <- rbind(error_table,sub_table)
+
+    R_res <- cor2pcor(cor(Y))
+    R_est <- R_res[lower.tri(R_res)] # the vectorized expected size-free correlations
+    sub_table <- data.table(cell=1:n_off_diag,R_true=R_true,method='pcor',R_est=R_est,error=error_from_correlation_matrix(R_res,R_exp_local))
+    error_table <- rbind(error_table,sub_table)
+
+  }
+  return(error_table)
+}
+
+@
+
+<<Figures, echo=FALSE>>=
+boxplot.95 <- function(x){
+  out <- quantile(x,probs=c(0.025,0.25,0.5,0.75,0.975))
+  names(out) <- c('ymin','lower','middle','upper','ymax')
+  return(out)
+}
+
+plot_fig_2 <- function(){
+  # a figure of subsets of a bivariate distribution, with subsets as increasingly smaller ranges of the major axis
+  seed <- 1 # set this to always produce the same results
+  set.seed(seed)
+  n <- 5*10^3
+  # create two vectors x and y that are correlated due to the common cause z
+  z <- rnorm(n)
+  x <- z + rnorm(n)
+  y <- z + rnorm(n)
+  E <- eigen(cor(data.frame(x=x,y=y)))$vectors # eigenvector decomposition
+  pc1 <- x*E[1,1] + y*E[2,1] # PC1 scores
+  r <- cor(x,y) # correlation between x and y
+  
+  # top 50%
+  cut <- quantile(pc1,.5) # the median PC1
+  inc <- which(pc1>cut) # inc includes the individuals with PC1 > cut
+  # the .5 refers to top 50%
+  x.5 <- x[inc]
+  y.5 <- y[inc]
+  r.5 <- cor(x.5,y.5)
+  
+  # top 5%
+  cut <- quantile(pc1,.95)
+  #  inc <- sample(which(pc1>cut),n)
+  inc <- which(pc1>cut)
+  x.95 <- x[inc]
+  y.95 <- y[inc]
+  r.95 <- cor(x.95,y.95)
+  
+  # combine into a data.table and plot
+  data <- data.table(rbind(
+    data.frame(X=x,Y=y,Level='All'),
+    data.frame(X=x.5,Y=y.5,Level='Top 50%'),
+    data.frame(X=x.95,Y=y.95,Level='Top 5%')))
+  
+  cors <- data[,list(cor=round(cor(X,Y),2)),by=Level]
+  gg <- ggplot(data=data,aes(x=X,y=Y))
+  gg <- gg + geom_point()
+  gg <- gg + xlab(expression(P[1])) + ylab(expression(P[2]))
+  # the default font size is 5 mm which is about 14.1 point size
+  gg <- gg + geom_text(data=cors,aes(label=paste("r = ", cor, sep="")), 
+                       x=3,y=-4,size=8/14.1*5)
+  gg <- gg + facet_grid(.~Level, labeller=label_both)
+  gg <- gg + theme_bw()
+  gg <- gg + theme(plot.margin=unit(x=c(0,0.1,0,0),'cm'),axis.title=element_text(size=8),axis.text=element_text(size=8),plot.title=element_text(hjust=0, size=12),strip.text=element_text(size=8),legend.margin=unit(-0.6,"cm"),legend.position=c('bottom'))
+  
+  fileout <- 'Fig02.eps'
+  height <- 3
+  width <- 6
+  ggsave(fileout,width=width,height=height,dpi=300)
+  
+  write.it <- FALSE
+  if(write.it == TRUE){
+    fn <- 'fig2data.txt'
+    write.table(data,fn,quote=FALSE,sep='\t',row.names=FALSE)
+  }
+
+}
+plot_fig_3 <- function(R_tile){
+  # the correlation heat-map for the Pearson correlations
+  gg1 <- ggplot(data=R_tile,aes(x=Event_A,y=Event_B,fill=Pearson))
+  gg1 <- gg1 + geom_tile()
+  gg1 <- gg1 + scale_fill_gradient2(limits=c(-1, 1))
+  gg1 <- gg1 + scale_x_discrete(labels=c('D','SP','J','HJ','LJ','PV','110','100','400','1500'))
+  gg1 <- gg1 + scale_y_discrete(labels=c('D','SP','J','HJ','LJ','PV','110','100','400','1500'))
+  gg1 <- gg1 + ggtitle(expression(italic('Pearson')))
+  gg1 <- gg1 + theme_bw()
+  gg1 <- gg1 + theme(plot.margin=unit(x=c(0,0.1,0,0),'cm'),plot.title=element_text(hjust=0),axis.title.x = element_blank(),axis.text=element_text(size=8), axis.title.y=element_blank(),legend.position=c('none'))
+
+ postscript('Fig03.eps',horizontal=FALSE,onefile=FALSE,paper='special',height=3.25,width=3.25)
+  print(gg1)
+  dev.off()
+}
+
+
+plot_fig_4 <- function(R_tile,axis_labels,fig_no){
+  # the correlation heat-map plot of the four different adjustments
+  gg1 <- ggplot(data=R_tile,aes(x=Event_A,y=Event_B,fill=Pcor))
+  gg1 <- gg1 + geom_tile()
+  gg1 <- gg1 + scale_fill_gradient2(limits=c(-1, 1))
+  gg1 <- gg1 + scale_x_discrete(labels=axis_labels)
+  gg1 <- gg1 + scale_y_discrete(labels=axis_labels)
+  gg1 <- gg1 + ggtitle(expression(paste('A  ',italic('Partial Correlations'))))
+  gg1 <- gg1 + theme_bw()
+  gg1 <- gg1 + theme(plot.margin=unit(x=c(0,.1,0,0),'cm'),plot.title=element_text(hjust=0),axis.title.x = element_blank(),axis.text=element_text(size=8), axis.title.y=element_blank(),legend.position=c('none'))
+  
+  gg2 <- ggplot(data=R_tile,aes(x=Event_A,y=Event_B,fill=RR))
+  gg2 <- gg2 + geom_tile()
+  gg2 <- gg2 + scale_fill_gradient2(limits=c(-1, 1))
+  gg2 <- gg2 + scale_x_discrete(labels=axis_labels)
+  gg2 <- gg2 + scale_y_discrete(labels=axis_labels)
+  gg2 <- gg2 + ggtitle(expression(paste('B  ',italic('PC1 Regression Residuals'))))
+  gg2 <- gg2 + theme_bw()
+  gg2 <- gg2 + theme(plot.margin=unit(x=c(0,.1,0,0),'cm'),plot.title=element_text(hjust=0),axis.title.x = element_blank(),axis.text=element_text(size=8), axis.title.y=element_blank(),legend.position=c('none'))
+  
+  gg3 <- ggplot(data=R_tile,aes(x=Event_A,y=Event_B,fill=WGSUC))
+  gg3 <- gg3 + geom_tile()
+  gg3 <- gg3 + scale_fill_gradient2(limits=c(-1, 1))
+  gg3 <- gg3 + scale_x_discrete(labels=axis_labels)
+  gg3 <- gg3 + scale_y_discrete(labels=axis_labels)
+  gg3 <- gg3 + ggtitle(expression(paste('C  ',italic('WGS Uncorrected'))))
+  gg3 <- gg3 + theme_bw()
+  gg3 <- gg3 + theme(plot.margin=unit(x=c(0,.1,0,0),'cm'),plot.title=element_text(hjust=0),axis.title.x = element_blank(),axis.text=element_text(size=8), axis.title.y=element_blank(),legend.position=c('none'))
+  
+  gg4 <- ggplot(data=R_tile,aes(x=Event_A,y=Event_B,fill=WGSBC))
+  gg4 <- gg4 + geom_tile()
+  gg4 <- gg4 + scale_fill_gradient2(limits=c(-1, 1))
+  gg4 <- gg4 + scale_x_discrete(labels=axis_labels)
+  gg4 <- gg4 + scale_y_discrete(labels=axis_labels)
+  gg4 <- gg4 + ggtitle(expression(paste('D  ',italic('WGS Bias-Corrected'))))
+  gg4 <- gg4 + theme_bw()
+  gg4 <- gg4 + theme(plot.margin=unit(x=c(0,.1,0,0),'cm'),plot.title=element_text(hjust=0),axis.title.x = element_blank(),axis.text=element_text(size=8), axis.title.y=element_blank(),legend.position=c('none'))
+
+  
+  fig_name <- paste('Fig',fig_no,'.eps',sep='')
+ postscript(fig_name,horizontal=FALSE,onefile=FALSE,paper='special',height=6.5,width=6.5)
+  grid.arrange(gg1,gg2,gg3,gg4,ncol=2,nrow=2)
+  dev.off()
+}
+
+plot_fig_5 <- function(error_table,quant_table,fig_no){ # the error interval plot
+  error_table <- reorder_method_levels(error_table)
+  gg1 <- ggplot(data=error_table[method!='samp',],aes(x=method,y=error))
+  gg1 <- gg1 + stat_summary(fun.data=boxplot.95,geom='boxplot',aes(fill=method),position='dodge')
+  gg1 <- gg1 + scale_y_continuous(name='Error')
+  #  gg1 <- gg1 + coord_cartesian(ylim=c(-.3,.3))
+  gg1 <- gg1 + ggtitle('A')
+  #gg1 <- gg1 + theme_bw()
+  gg1 <- gg1 + theme(plot.margin=unit(x=c(0,.1,0,0),'cm'),axis.title=element_text(size=11),axis.text=element_text(size=9),plot.title=element_text(hjust=0),strip.text=element_text(size=10),legend.title=element_blank(),legend.text=element_text(size=9),legend.position=c('none'),legend.margin=unit(-0.6,"cm"))
+  gg1
+  
+  small_error_table <- error_table[method=='wgsbc',]
+  inc <- sample(1:dim(small_error_table)[1],50000)
+  gg2 <- ggplot(data=small_error_table[inc,],aes(x=R_est,y=R_true))
+  gg2 <- gg2 + geom_point(alpha=.1)
+  gg2 <- gg2 + coord_cartesian(xlim=c(-.45,.45),ylim=c(-.45,.45))
+  gg2 <- gg2 + scale_y_continuous(name=expression(italic(r)[true]))
+  gg2 <- gg2 + scale_x_continuous(name=expression(italic(r)[wgsbc]))
+  gg2 <- gg2 + geom_line(data=quant_table,aes(x=xx0.025,y=fv0.025),color="blue")
+  gg2 <- gg2 + geom_line(data=quant_table,aes(x=xx0.5,y=fv0.5),color="blue")
+  gg2 <- gg2 + geom_line(data=quant_table,aes(x=xx0.975,y=fv0.975),color="blue")
+  #gg2 <- gg2 + theme(plot.title=element_text(hjust=0, size=12))
+  gg2 <- gg2 + theme_bw()
+  gg2 <- gg2 + theme(plot.margin=unit(x=c(0,.1,0,0),'cm'),axis.title=element_text(size=11),axis.text=element_text(size=9),plot.title=element_text(hjust=0),strip.text=element_text(size=10),legend.title=element_blank(),legend.text=element_text(size=9),legend.position=c('none'),legend.margin=unit(-0.6,"cm"))
+  gg2 <- gg2 + ggtitle('B')
+  
+  
+  fig_name <- paste('Fig',fig_no,'.pdf',sep='')
+#  postscript(fig_name,horizontal=FALSE,onefile=FALSE,paper='special',height=3.25,width=6)
+#  grid.arrange(gg1,gg2,ncol=2,nrow=1)
+#  dev.off()
+
+  w <- 6
+  h <- 3.25
+  pdf(fig_name,paper='special',onefile=FALSE,width=w,height=h)
+  grid.arrange(gg1,gg2,ncol=2,nrow=1)
+  dev.off()
+}
+
+@
+
+\newpage
+\section{Re-analysis of Wilson et al. (2014) soccer data}
+
+This section re-analyzes the soccer athletic performance data \citep{wilson_does_2014} using Wright's General Size factor analysis with bias correction ($\mathrm{WGS_{bc}}$) to estimate quality-free correlations. Partial correlations conditional on all other performance variables \citep{van_damme_performance_2002} were also used to estimate the quality-free correlations. Pearson, Partial (Pcor), Regression Residual (RR), and $\mathrm{WGS_{bc}}$ correlations are illustrated with heat maps (Fig. 1) and tabled (Table 1). The error intervals associated with each method are illustrated in Fig. 2 and were computed using Monte Carlo simulation of 2500 data sets with a distribution of correlations similar to that of the soccer data (see Methods) The Pearson correlations are from Table 1 of \cite{wilson_does_2014}. The regression residual correlations are from Table 2 of \cite{wilson_does_2014}. The $\mathrm{WGS_{bc}}$ were computed using the PC1 loadings in Table 3 of \cite{wilson_does_2014} (these loadings are estimates of the Quality path coefficients $\alpha$).
+
+\begin{table}[ht]
+\caption{Pearson and quality-adjusted correlations for soccer data}
+\centering
+\begin{tabular}{rllrrrr}
+  \hline
+ & Event\_A & Event\_B & Pearson & Pcor & RR & WGS$_\mathrm{bc}$ \\ 
+  \hline
+1 & Squat & X1500 & 0.16 & -0.02 & -0.52 & -0.10 \\ 
+  2 & Jump & X1500 & 0.18 & -0.08 & -0.41 & -0.11 \\ 
+  3 & Jump & Squat & 0.47 & 0.18 & -0.20 & 0.03 \\ 
+  4 & Sprint & X1500 & 0.32 & 0.28 & 0.05 & 0.11 \\ 
+  5 & Sprint & Squat & 0.29 & 0.14 & -0.06 & -0.03 \\ 
+  6 & Sprint & Jump & 0.37 & 0.27 & -0.25 & 0.01 \\ 
+  7 & Agility & X1500 & 0.28 & 0.22 & -0.44 & -0.01 \\ 
+  8 & Agility & Squat & 0.50 & 0.30 & 0.15 & 0.06 \\ 
+  9 & Agility & Jump & 0.63 & 0.51 & -0.02 & 0.15 \\ 
+  10 & Agility & Sprint & 0.24 & -0.09 & -0.52 & -0.12 \\ 
+   \hline
+\end{tabular}
+\end{table}
+
+\bibliographystyle{jxb}
+\bibliography{Supp1}
+
+<<Analyze Wilson Data, echo=FALSE>>=
+do_wilson <- function(){
+  # analyze wilson soccer data
+  wilson <- data.table(read.table('soccer_corr.txt',header=TRUE,sep='\t'))
+  wilson.load <- as.numeric(wilson[,Load])
+  wilson.cor <- as.matrix(wilson[,list(X1500,Squat,Jump,Sprint,Agility)])
+  rbar <- mean(wilson.cor[lower.tri(wilson.cor)])
+  R_gs <- wilson.load%*%t(wilson.load)
+  R_gs_bar <- mean(R_gs[lower.tri(R_gs)])
+  R_wgsbc <- wilson.cor - R_gs*rbar/R_gs_bar
+  bc_alpha <- matrix(wilson.load*sqrt(rbar/R_gs_bar),nrow=5,ncol=1)
+  row.names(R_wgsbc) <- colnames(R_wgsbc)
+  R_cor_pcor <- cor2pcor(wilson.cor)
+  R_cor_rr <- as.matrix(read.table('soccer_rr_cor.txt',sep='\t',header=TRUE))
+  colnames(R_cor_pcor) <- colnames(wilson.cor)
+  colnames(R_cor_rr) <- colnames(wilson.cor)
+  colnames(R_wgsbc) <- colnames(wilson.cor)
+  row.names(wilson.cor) <- colnames(wilson.cor)
+  row.names(R_cor_pcor) <- colnames(wilson.cor)
+  row.names(R_cor_rr) <- colnames(wilson.cor)
+  row.names(R_wgsbc) <- colnames(wilson.cor)
+  
+  R_cor_tile <- melt(wilson.cor)
+  colnames(R_cor_tile)[3] <- 'Pearson'
+  diag(R_cor_pcor) <- 1.0
+  R_cor_pcor_tile <- melt(R_cor_pcor)
+  colnames(R_cor_pcor_tile)[3] <- 'Pcor'
+  diag(R_cor_rr) <- 1.0
+  R_cor_rr_tile <- melt(R_cor_rr)
+  colnames(R_cor_rr_tile)[3] <- 'RR'
+  diag(R_wgsbc) <- 1.0
+  R_wgs_tile <- melt(R_wgsbc)
+  colnames(R_wgs_tile)[3] <- 'WGSBC'
+  
+  R_tile <- merge(R_cor_tile,R_cor_pcor_tile,by=c('Var1','Var2'))
+  R_tile <- merge(R_tile,R_cor_rr_tile,by=c('Var1','Var2'))
+  R_tile <- merge(R_tile,R_wgs_tile,by=c('Var1','Var2'))
+  colnames(R_tile)[1:2] <- c('Event_A','Event_B')
+  R_tile <- data.table(R_tile)
+  
+  plot_wilson_correlations(R_tile,axis_labels=c('1500','squat','jump','sprint','agility'),fig_no='01')
+
+  
+  res_wilson <- list(R=wilson.cor,R_resid=R_wgsbc,bc_alpha=bc_alpha)
+  niter <- 1000
+  # uncomment the next line to generate the error data
+  # wilson_error <- simulate_data(matrix((rnorm(28*5)+10),nrow=28,ncol=5),res_wilson,btable,niter=niter)
+  fout <- paste('simulated_wilson_data_sub2.niter=',niter,'.txt',sep='')
+  #write.table(wilson_error,fout,quote=FALSE,sep='\t')
+  error_table <- data.table(read.table(fout,header=TRUE))
+  plot_wilson_errors(error_table,fig_no='02')
+  
+  R_table <- lower_list(R_tile,R_tile[,Event_A],R_tile[,Event_B])
+  write.table(R_table,'wilson_soccer_cor_table.txt',quote=FALSE,sep='\t')
+}
+
+plot_wilson_correlations <- function(R_tile,axis_labels,fig_no){
+  # the correlation heat-map plot of the four different adjustments
+  gg1 <- ggplot(data=R_tile,aes(x=Event_A,y=Event_B,fill=Pearson))
+  gg1 <- gg1 + geom_tile()
+  gg1 <- gg1 + scale_fill_gradient2(limits=c(-1, 1))
+  gg1 <- gg1 + scale_x_discrete(labels=axis_labels)
+  gg1 <- gg1 + scale_y_discrete(labels=axis_labels)
+  gg1 <- gg1 + ggtitle(expression(paste('A  ',italic('Pearson'))))
+  gg1 <- gg1 + theme_bw()
+  gg1 <- gg1 + theme(plot.margin=unit(x=c(0,.1,0,0),'cm'),plot.title=element_text(hjust=0),axis.title.x = element_blank(),axis.text=element_text(size=8), axis.title.y=element_blank(),legend.position=c('none'))
+  
+  gg2 <- ggplot(data=R_tile,aes(x=Event_A,y=Event_B,fill=Pcor))
+  gg2 <- gg2 + geom_tile()
+  gg2 <- gg2 + scale_fill_gradient2(limits=c(-1, 1))
+  gg2 <- gg2 + scale_x_discrete(labels=axis_labels)
+  gg2 <- gg2 + scale_y_discrete(labels=axis_labels)
+  gg2 <- gg2 + ggtitle(expression(paste('B  ',italic('Partial Correlations'))))
+  gg2 <- gg2 + theme_bw()
+  gg2 <- gg2 + theme(plot.margin=unit(x=c(0,0.1,0,0),'cm'),plot.title=element_text(hjust=0),axis.title.x = element_blank(),axis.text=element_text(size=8), axis.title.y=element_blank(),legend.position=c('none'))
+  
+  gg3 <- ggplot(data=R_tile,aes(x=Event_A,y=Event_B,fill=RR))
+  gg3 <- gg3 + geom_tile()
+  gg3 <- gg3 + scale_fill_gradient2(limits=c(-1, 1))
+  gg3 <- gg3 + scale_x_discrete(labels=axis_labels)
+  gg3 <- gg3 + scale_y_discrete(labels=axis_labels)
+  gg3 <- gg3 + ggtitle(expression(paste('C  ',italic('PC1 Regression Residuals'))))
+  gg3 <- gg3 + theme_bw()
+  gg3 <- gg3 + theme(plot.margin=unit(x=c(0,0.1,0,0),'cm'),plot.title=element_text(hjust=0),axis.title.x = element_blank(),axis.text=element_text(size=8), axis.title.y=element_blank(),legend.position=c('none'))
+  
+  gg4 <- ggplot(data=R_tile,aes(x=Event_A,y=Event_B,fill=WGSBC))
+  gg4 <- gg4 + geom_tile()
+  gg4 <- gg4 + scale_fill_gradient2(limits=c(-1, 1))
+  gg4 <- gg4 + scale_x_discrete(labels=axis_labels)
+  gg4 <- gg4 + scale_y_discrete(labels=axis_labels)
+  gg4 <- gg4 + ggtitle(expression(paste('D  ',italic('WGS Bias-Corrected'))))
+  gg4 <- gg4 + theme_bw()
+  gg4 <- gg4 + theme(plot.margin=unit(x=c(0,0.1,0,0),'cm'),plot.title=element_text(hjust=0),axis.title.x = element_blank(),axis.text=element_text(size=8), axis.title.y=element_blank(),legend.position=c('none'))
+
+  
+  fig_name <- paste('SuppFig',fig_no,'.eps',sep='')
+ postscript(fig_name,horizontal=FALSE,onefile=FALSE,paper='special',height=6.5,width=6.5)
+  grid.arrange(gg1,gg2,gg3,gg4,ncol=2,nrow=2)
+  dev.off()
+}
+
+plot_wilson_errors <- function(error_table,fig_no){ # the error interval plot
+  error_table <- reorder_method_levels(error_table)
+  gg1 <- ggplot(data=error_table[method!='samp',],aes(x=method,y=error))
+  gg1 <- gg1 + stat_summary(fun.data=boxplot.95,geom='boxplot',aes(fill=method),position='dodge')
+  gg1 <- gg1 + scale_y_continuous(name='Error')
+#  gg1 <- gg1 + coord_cartesian(ylim=c(-.3,.3))
+#  gg1 <- gg1 + theme_bw()
+  gg1 <- gg1 + theme(plot.margin=unit(x=c(0,0.1,0,0),'cm'),axis.title=element_text(size=11),axis.text=element_text(size=9),plot.title=element_text(hjust=0),strip.text=element_text(size=10),legend.title=element_blank(),legend.text=element_text(size=9),legend.position=c('none'),legend.margin=unit(-0.6,"cm"))
+  gg1
+
+  fig_name <- paste('SuppFig',fig_no,'.eps',sep='')
+ postscript(fig_name,horizontal=FALSE,onefile=FALSE,paper='special',height=3.25,width=3.25)
+  print(gg1)
+  dev.off()
+}
+
+@
+
+
+\includegraphics{SuppFig01.eps}
+\newline
+\textbf{Fig. 1.} A) Heat maps depicting the sign and magnitude of the quality-adjusted correlations among the five performances measured for on 28 soccer players. Positive correlations are blue. Negative correlations are red. Color intensity reflects the magnitude of the correlation. A) Pearson product-moment correlations, B) Partial correlations conditional on all additional performance variables, C) Regression residual correlations computed using the residuals of each performance trait regressed on the first principal component scores. D) Wright's General Size correlations with bias-correction.
+\newpage
+\includegraphics{SuppFig02.eps}
+\newline
+\textbf{Fig. 2} The distribution of the errors for the four adjustment methods estimated by Monte Carlo simulation of the soccer data. Box plots with the median, $50\%$ and $95\%$ intervals represented by the horizontal line, the box, and the tips of the whiskers.
+
+<<Wilson Table,echo=FALSE>>=
+  R_table <- data.table(read.table('wilson_soccer_cor_table.txt',header=TRUE,sep='\t'))
+  R_table_form <- R_table[,list(Event_A,Event_B,Pearson=round(Pearson,2),Pcor=round(Pcor,2),RR=round(RR,2),WGSbc=round(WGSBC,2))]
+  R_tabular <- xtable(R_table_form)
+@
+
+\newpage
+\section{Comparison of empirical and simulated correlations}
+\includegraphics{SupFig00.eps}
+\newline
+\textbf{Fig. 3} The distribution of the raw, Pearson product-moment correlations of the A) NCAA data and B) simulated data.
+
+<<Supp01 Distribution of Correlations, echo=FALSE,message=FALSE>>=
+R_ncaa <- data.table(read.table('R_table.txt',header=TRUE,sep='\t'))
+R_sim <- data.table(read.table('simulated_decath_data_sub2.niter=2500.txt',header=TRUE,sep='\t'))
+R_sim <- R_sim[method=='Pearson',]
+
+gg1 <-ggplot(data=R_ncaa,aes(x=Pearson))
+gg1 <- gg1 + geom_histogram(binwidth=.05)
+gg1 <- gg1 + coord_cartesian(xlim=c(0,1))
+gg1 <- gg1 + xlab('Pearson r')
+gg1 <- gg1 + ggtitle(expression(paste('A  ',italic('NCAA data'))))
+gg1 <- gg1 + theme(plot.margin=unit(x=c(0,.35,0,0),'cm'),axis.title=element_text(size=11),axis.text=element_text(size=9),plot.title=element_text(hjust=0),strip.text=element_text(size=10),legend.title=element_blank(),legend.text=element_text(size=9),legend.position=c('none'),legend.margin=unit(-0.6,"cm"))
+
+
+gg2 <-ggplot(data=R_sim,aes(x=R_est))
+gg2 <- gg2 + geom_histogram(binwidth=.05)
+gg2 <- gg2 + coord_cartesian(xlim=c(0,1))
+gg2 <- gg2 + xlab('Pearson r')
+gg2 <- gg2 + ggtitle(expression(paste('B  ',italic('Simulated data'))))
+gg2 <- gg2 + theme(plot.margin=unit(x=c(0,.35,0,0),'cm'),axis.title=element_text(size=11),axis.text=element_text(size=9),plot.title=element_text(hjust=0),strip.text=element_text(size=10),legend.title=element_blank(),legend.text=element_text(size=9),legend.position=c('none'),legend.margin=unit(-0.6,"cm"))
+
+
+  fig_name <- 'SupFig00.eps'
+  postscript(fig_name,horizontal=FALSE,onefile=FALSE,paper='special',height=3.25,width=6)
+  grid.arrange(gg1,gg2,ncol=2,nrow=1)
+  dev.off()
+
+@
+
+
+\end{flushleft}
+
+\end{document}
