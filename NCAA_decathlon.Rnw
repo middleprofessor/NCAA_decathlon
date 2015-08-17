@@ -50,6 +50,12 @@ library(reshape2) #melt
 library(colorspace) # color palette
 library(quantreg) #lprq - quantile regression
 library(xtable)
+library(ICC) #intraclass-correlation
+library(showtext) # needed for eps fonts to add Arial to .eps
+font.add('Arial',regular='Arial.ttf')
+library(extrafont)
+font_import(pattern="[A/a]rial")
+loadfonts()
 @
 
 \section{Path Models}
@@ -278,7 +284,8 @@ chi_s_2 <- chi_2/sd_m2 # standardized
 # empirical correlations
 cor(P_1,P_2)
 # expected correlation
-delta_s_11*delta_s_12 + delta_s_21*delta_s_22 + delta_s_11*chi_s_1*chi_s_2*delta_s_22 + delta_s_12*chi_s_1*chi_s_2*delta_s_21
+delta_s_11*delta_s_12 + delta_s_21*delta_s_22 + 
+  delta_s_11*chi_s_1*chi_s_2*delta_s_22 + delta_s_12*chi_s_1*chi_s_2*delta_s_21
 
 # decomposition into intrinsic and extrinsic components
 # beta is the component due to G
@@ -302,12 +309,14 @@ r_beta <- beta_s_11*beta_s_12 + beta_s_21*beta_s_22 # due to beta
 # checking the math, should be equivalent
 r_beta <- delta_11*delta_12*eta_1^2/(sd_p1*sd_p2) +
   delta_21*delta_22*eta_2^2/(sd_p1*sd_p2)
-# the 3rd and 4th parts use delta instead of alpha because the correlation between M_1 and M_2 requires all of the variance and not just that due to Q
+# the 3rd and 4th parts use delta instead of alpha because the correlation
+# between M_1 and M_2 requires all of the variance and not just that due to Q
 r_alpha <- alpha_s_11*alpha_s_12 + alpha_s_21*alpha_s_22 +
   delta_s_11*chi_s_1*chi_s_2*delta_s_22 + 
   delta_s_12*chi_s_1*chi_s_2*delta_s_21
 r_alpha
-# computing r_alpha without the standardized coefficients shows that sd_m1 and sd_m2 are in both num and denom and cancel
+# computing r_alpha without the standardized coefficients shows that sd_m1 and 
+# sd_m2 are in both num and denom and cancel
 # = r_alpha
 delta_11*delta_12*chi_1^2/(sd_p1*sd_p2) +
   delta_21*delta_22*chi_2^2/(sd_p1*sd_p2) +
@@ -320,7 +329,8 @@ alpha_2 <- chi_1*delta_12/sd_p2 + chi_2*delta_22/sd_p2
 alpha_1*alpha_2 # = r_alpha
 
 # expected correlation not decomposed (left side)
-delta_s_11*delta_s_12 + delta_s_21*delta_s_22 + delta_s_11*chi_s_1*chi_s_2*delta_s_22 + delta_s_12*chi_s_1*chi_s_2*delta_s_21
+delta_s_11*delta_s_12 + delta_s_21*delta_s_22 + 
+  delta_s_11*chi_s_1*chi_s_2*delta_s_22 + delta_s_12*chi_s_1*chi_s_2*delta_s_21
 #expeced correlation decomposed (right side) - should be equivalent to above
 r_beta + r_alpha
 #empirical correlation
@@ -531,6 +541,64 @@ error_table <- round(data.table(
 error_table
 @
 
+\subsection{How quality or a facilitation does not mask trade-offs at the whole animal level}
+This is a script to explore the section "What facilitations or quality do not mask" in the Discussion of the paper.
+\begin{equation} \label{eq:discussion_a}
+  \begin{tikzpicture}
+		\node (1) {$M_1$};
+		\node[below right=of 1] (2) {$P_1$};
+		\node[right=of 2] (3) {$P_2$};
+		\node[above right=of 3] (4) {$Q$};
+		\draw [->] (1) -- node[left,font=\footnotesize]{-.4} (2);
+		\draw [->] (1) -- node[above,font=\footnotesize]{.4} (3);
+		\draw [->] (4) -- node[above,font=\footnotesize]{.7} (2);
+		\draw [->] (4) -- node[right,font=\footnotesize]{.7} (3);
+	\end{tikzpicture}
+ \end{equation}
+
+<< How quality or a facilitation does not mask trade-offs at the whole animal level>>=
+
+  seed <- 10566
+  set.seed(seed)
+  M <- rnorm(n)
+  Q <- rnorm(n)
+  beta_1 <- -.4
+  beta_2 <- .4
+  alpha_1 <- .7
+  alpha_2 <- .7
+  n <- 10^4
+  E_1 <- rnorm(n)
+  E_2 <- rnorm(n)
+  P_1 <- alpha_1*Q + beta_1*M + sqrt(1 - alpha_1^2 - beta_1^2)*E_1
+  P_2 <- alpha_2*Q + beta_2*M + sqrt(1 - alpha_2^2 - beta_2^2)*E_2
+  alpha_1*alpha_2 + beta_1*beta_2 # expected r
+  cor(P_1,P_2) # actual r
+  
+  # add training. Two notes
+  # 1) The response of the M trait to training is precisely the same. There will obviously 
+  # be variation in real humans
+  # 2) The Error in the performance is precisely that before training (that is the error 
+  # has correlation = 1), which means that an athlete that was .37 units above the mean in 
+  # P_1 prior to training was also .37 units above the mean post training. In reality this 
+  # error will likely be correlated (even high correlated) but not 1. Even if the error 
+  # post training is independent of the error pre-training, the expected mean response is   
+  # delta_M*beta
+  delta_M <- .5
+  M_trained <- M + delta_M
+  E1_post <- E_1 # make this rnorm(n) to make it independent of E_1
+  E2_post <- E_2
+  P1_trained <- alpha_1*Q + beta_1*M_trained + sqrt(1 - alpha_1^2 - beta_1^2)*E1_post
+  P2_trained <- alpha_2*Q + beta_2*M_trained + sqrt(1 - alpha_2^2 - beta_2^2)*E2_post
+  delta_P1 <- (P1_trained - P_1)
+  delta_P2 <- (P2_trained - P_2)
+  beta_1*delta_M # expected mean response in P1
+  beta_2*delta_M #expected mean response in P2
+  mean(delta_P1) # sample mean response to training for P1
+  mean(delta_P2) # sample mean response to training for P2
+  data.frame(delta_P1=delta_P1,delta_P2=delta_P2)[1:5,]
+  
+
+@
 
 <<Analyze NCAA decathlon data, echo=FALSE>>=
 do_it <- function(){
@@ -545,6 +613,25 @@ do_it <- function(){
   
   # generate_max_performance_data generates the file 'ncaa.max_perf.txt' of max performances for the cleaned data. For the run events, the performance is inverted into m/s instead of duration
   if(generate_max_file == TRUE){generate_max_performance_file()}
+  
+  # do repeatability (intraclass-correlation)
+  clean_data <- data.table(read.table('ncaa.2014.clean.txt',header=TRUE,sep='\t',colClasses=c(rep('factor',5),rep('numeric',10))))
+  .sdcols <- c('run_100m','run_400m','run_1500m','run_110h','high_jump','long_jump','pole_vault','shot_put','discus','javelin')
+  # this is terrible code because it allows errors to creep in if the order of columns change
+  icc_res <- numeric(10)
+  icc_res[1] <- unlist(ICCbare(Name,run_110h,data=clean_data))
+  icc_res[2] <- unlist(ICCbare(Name,run_400m,data=clean_data))
+  icc_res[3] <- unlist(ICCbare(Name,run_1500m,data=clean_data))
+  icc_res[4] <- unlist(ICCbare(Name,run_400m,data=clean_data))
+  icc_res[5] <- unlist(ICCbare(Name,high_jump,data=clean_data))
+  icc_res[6] <- unlist(ICCbare(Name,long_jump,data=clean_data))
+  icc_res[7] <- unlist(ICCbare(Name,pole_vault,data=clean_data))
+  icc_res[8] <- unlist(ICCbare(Name,shot_put,data=clean_data))
+  icc_res[9] <- unlist(ICCbare(Name,discus,data=clean_data))
+  icc_res[10] <- unlist(ICCbare(Name,javelin,data=clean_data))
+  icc <- data.table(event=.sdcols,icc=icc_res)
+
+
   
   # read in the file of maximum performance data. This file will contain missing data
   max_data <- data.table(read.table('ncaa.max_perf.txt',header=TRUE,sep='\t',colClasses=c(rep('factor',3),rep('numeric',10))))
@@ -592,34 +679,33 @@ do_it <- function(){
     
   # heat map figures
   R_raw_tile <- melt(R_raw)
-  colnames(R_raw_tile)[3] <- 'Pearson'
+  colnames(R_raw_tile) <- c('Event_A', 'Event_B', 'Pearson')
   diag(R_pcor) <- 1.0
   R_pcor_tile <- melt(R_pcor)
-  colnames(R_pcor_tile)[3] <- 'Pcor'
+  colnames(R_pcor_tile) <- c('Event_A', 'Event_B', 'Pcor')
   diag(R_cor_rr) <- 1.0
   R_cor_rr_tile <- melt(R_cor_rr)
-  colnames(R_cor_rr_tile)[3] <- 'RR'
+  colnames(R_cor_rr_tile) <- c('Event_A', 'Event_B', 'RR')
   diag(R_wgsuc) <- 1.0
   R_wgs_uc_tile <- melt(R_wgsuc)
-  colnames(R_wgs_uc_tile)[3] <- 'WGSUC'
+  colnames(R_wgs_uc_tile) <- c('Event_A', 'Event_B', 'WGSUC')
   diag(R_wgsbc) <- 1.0
   R_wgs_bc_tile <- melt(R_wgsbc)
-  colnames(R_wgs_bc_tile)[3] <- 'WGSBC'
+  colnames(R_wgs_bc_tile) <- c('Event_A', 'Event_B', 'WGSBC')
   R_quality_tile <- melt(R_quality)
-  colnames(R_quality_tile)[3] <- 'R_q'
+  colnames(R_quality_tile) <- c('Event_A', 'Event_B', 'R_q')
   
-  R_tile <- merge(R_raw_tile,R_pcor_tile,by=c('Var1','Var2'))
-  R_tile <- merge(R_tile,R_cor_rr_tile,by=c('Var1','Var2'))
-  R_tile <- merge(R_tile,R_wgs_uc_tile,by=c('Var1','Var2'))
-  R_tile <- merge(R_tile,R_wgs_bc_tile,by=c('Var1','Var2'))
-  R_tile <- merge(R_tile,R_quality_tile,by=c('Var1','Var2'))
-  colnames(R_tile)[1:2] <- c('Event_A','Event_B')
+  R_tile <- merge(R_raw_tile,R_pcor_tile,by=c('Event_A','Event_B'))
+  R_tile <- merge(R_tile,R_cor_rr_tile,by=c('Event_A','Event_B'))
+  R_tile <- merge(R_tile,R_wgs_uc_tile,by=c('Event_A','Event_B'))
+  R_tile <- merge(R_tile,R_wgs_bc_tile,by=c('Event_A','Event_B'))
+  R_tile <- merge(R_tile,R_quality_tile,by=c('Event_A','Event_B'))
   R_tile <- data.table(R_tile)
   R_tile[,Event_A:=reorder_event_levels(Event_A)]
   R_tile[,Event_B:=reorder_event_levels(Event_B)]
   
-  plot_fig_3(R_tile)
-  plot_fig_4(R_tile,axis_labels=c('D','SP','J','HJ','LJ','PV','110','100','400','1500'),fig_no='04')
+  plot_fig_2(R_tile)
+  plot_fig_3(R_tile,axis_labels=c('D','SP','J','HJ','LJ','PV','110','100','400','1500'),fig_no='03')
   
   # compute and/or read in the simulated data used for the error distribution of the bmgs correlations
   if(simulate_the_data==TRUE){
@@ -637,7 +723,7 @@ do_it <- function(){
   }
   quant_table <- data.table(read.table('quant.table.n=50000',header=TRUE))
 
-  plot_fig_5(error_table,quant_table, fig_no='05')
+  plot_fig_4(error_table,quant_table, fig_no='04')
    
   # generate tables of correlations and errors
 
@@ -930,7 +1016,7 @@ gwfa <- function(X,which_size='pc1',fit,bc='none',b=0){ # generalized wright fac
   # fit is the returned object from fit_bias2
   # bc is "bias-correct", which can be 'none', 'wright', or 'bm' where bm = bias-model
   # b is the row of b_table for p=p
-  X_s <- standardize(X)
+  X_s <- standardize(X) # how does not mean centering effect alpha_hat=loadings?
   R <- cor(X,use='pairwise.complete.obs')
   p <- dim(X)[2]
   
@@ -1207,9 +1293,7 @@ simulate_data <- function(data,wgs_fit,btable,niter=100){
   bc_alpha <- wgs_fit$bc_alpha[,1]
   # could also do TSS and GMS fits
   
-  M_fit <- fit_factor_matrix(wgs_fit$R,rep(0,p)) # fit for size-contaminated data
-  m_sf <- M_fit$m
-  M_fit <- fit_factor_matrix(R_resid,bc_alpha) # fit for size-contaminated data
+  M_fit <- fit_factor_matrix(R_resid,bc_alpha) # fit for size-free data
   m <- M_fit$m # m is 19 for decathlon data
   alpha <- bc_alpha
   
@@ -1223,13 +1307,6 @@ simulate_data <- function(data,wgs_fit,btable,niter=100){
       colnames(Xo) <- paste('P',seq(1:p),sep='_')
       # transform to mean=mu and sd=sigma
       X <- t(t(Xo)*sigma + mu)
-
-      M_sf <- construct_M_matrix(p,m_sf,alpha=rep(0,p),epsilon=0.05)
-      res_sf <- modular.fake.data(n,M_sf,method='quick')
-      Xo_sf <- res_sf$X # the fake data, which is asymptotically standardized to sd=1
-      colnames(Xo_sf) <- paste('P',seq(1:p),sep='_')
-      # transform to mean=mu and sd=sigma
-      X_sf <- t(t(Xo_sf)*sigma + mu)
 
       if(min(X)>0){pos_X <- TRUE}
     }
@@ -1245,24 +1322,17 @@ simulate_data <- function(data,wgs_fit,btable,niter=100){
     R_exp_local <- expected.R(M,exclude_global=TRUE) #expected size-free correlation matrix
     R_true <- R_exp_local[lower.tri(R_exp_local)] # the vectorized expected size-free correlations
     mean_r_local <- mean(abs(R_true)) # mean r in expected size-free matrix
-    R_exp_local_adj <- expected.R(M_sf,exclude_global=TRUE)# compare R_sf to this
     
     # check
     #eigen(cor(Y))$vectors[,1]
     
     # get size-free R
-    Y_sf <- X_sf # see explanation above
-    R_sf <- cor(Y_sf) # actual size-free correlation matrix (same as cor(X_sf))    
-    
-    R_res <- cor(X) # Pearson correlations to compare the distribution with ncaa distribution
-    R_est <- R_res[lower.tri(R_res)] # the vectorized expected size-free correlations
-    sub_table <- data.table(cell=1:n_off_diag,R_true=R_true,method='Pearson',R_est=R_est,error=error_from_correlation_matrix(R_sf,R_exp_local_adj))
-    if(iter==1){error_table <- sub_table}else{error_table <- rbind(error_table,sub_table)}
+    # original code had estimate of size-free Y and cor(Y) to get error due to sampling only
         
     R_res <- gwfa(Y,which_size='pc1',bc='wright',b=btable[,'pc1'])$R_resid
     R_est <- R_res[lower.tri(R_res)] # the vectorized expected size-free correlations
     sub_table <- data.table(cell=1:n_off_diag,R_true=R_true,method='wgsbc',R_est=R_est,error=error_from_correlation_matrix(R_res,R_exp_local))
-    error_table <- rbind(error_table,sub_table)
+    if(iter==1){error_table <- sub_table}else{error_table <- rbind(error_table,sub_table)}
 
     R_res <- gwfa(Y,which_size='pc1',bc='none',b=btable[,'pc1'])$R_resid
     R_est <- R_res[lower.tri(R_res)] # the vectorized expected size-free correlations
@@ -1286,13 +1356,17 @@ simulate_data <- function(data,wgs_fit,btable,niter=100){
 @
 
 <<Figures, echo=FALSE>>=
+
+theme_jeb <- theme_bw() + theme(text=element_text(family = "Arial"), plot.margin=unit(x=c(0,0.1,0,0),'cm'), plot.title=element_text(hjust=0), axis.title.x = element_blank(), axis.text=element_text(size=8), axis.title.y=element_blank(),legend.position=c('bottom'),legend.key.width=unit(0.4, "in"))
+
 boxplot.95 <- function(x){
   out <- quantile(x,probs=c(0.025,0.25,0.5,0.75,0.975))
   names(out) <- c('ymin','lower','middle','upper','ymax')
   return(out)
 }
 
-plot_fig_2 <- function(){
+plot_old_fig_2 <- function(){
+  # this fig is now in the supplement
   # a figure of subsets of a bivariate distribution, with subsets as increasingly smaller ranges of the major axis
   seed <- 1 # set this to always produce the same results
   set.seed(seed)
@@ -1350,78 +1424,128 @@ plot_fig_2 <- function(){
   }
 
 }
-plot_fig_3 <- function(R_tile){
+plot_fig_2 <- function(R_tile){
   # the correlation heat-map for the Pearson correlations
+  # max w: 180 mm = 7.08661 inch
+  # max h: 210 mm = 8.26772 inch
+  # 12 pt bold for figure panels
+  # 8 pt Arial for labels
   gg1 <- ggplot(data=R_tile,aes(x=Event_A,y=Event_B,fill=Pearson))
   gg1 <- gg1 + geom_tile()
-  gg1 <- gg1 + scale_fill_gradient2(limits=c(-1, 1))
+  gg1 <- gg1 + geom_text(aes(Event_B, Event_A, label = round(Pearson,2)), color = "black", size = 2.1) # 2.1 = 6 pt
+  gg1 <- gg1 + scale_fill_gradient2(limits=c(-1, 1),name='Cor')
   gg1 <- gg1 + scale_x_discrete(labels=c('D','SP','J','HJ','LJ','PV','110','100','400','1500'))
   gg1 <- gg1 + scale_y_discrete(labels=c('D','SP','J','HJ','LJ','PV','110','100','400','1500'))
   gg1 <- gg1 + ggtitle(expression(italic('Pearson')))
   gg1 <- gg1 + theme_bw()
-  gg1 <- gg1 + theme(plot.margin=unit(x=c(0,0.1,0,0),'cm'),plot.title=element_text(hjust=0),axis.title.x = element_blank(),axis.text=element_text(size=8), axis.title.y=element_blank(),legend.position=c('none'))
+  gg1 <- gg1 + theme(text=element_text(family = "Arial"),plot.margin=unit(x=c(0,0.1,0,0),'cm'),plot.title=element_text(hjust=0,size=12),axis.title.x = element_blank(),axis.text=element_text(size=8), axis.title.y=element_blank(),legend.text=element_text(size=8),legend.position=c('bottom'),legend.key.width=unit(0.4, "in"))
+#  gg1 <- gg1 + theme_jeb()
+  gg1 <- gg1 + guides(fill = guide_colorbar(ticks = FALSE))
 
- postscript('Fig03.eps',horizontal=FALSE,onefile=FALSE,paper='special',height=3.25,width=3.25)
+#  postscript('Fig02.eps',horizontal=FALSE,onefile=FALSE,paper='special',height=4.0,width=3.25)
+ # print(gg1)
+#  dev.off()
+  
+  pdf('Fig02.pdf',paper='special',onefile=FALSE,width=3.25,height=4)
+  showtext.begin()
   print(gg1)
+  showtext.end()
   dev.off()
+  
 }
 
 
-plot_fig_4 <- function(R_tile,axis_labels,fig_no){
+plot_fig_3 <- function(R_tile,axis_labels,fig_no){
   # the correlation heat-map plot of the four different adjustments
   gg1 <- ggplot(data=R_tile,aes(x=Event_A,y=Event_B,fill=Pcor))
   gg1 <- gg1 + geom_tile()
+  gg1 <- gg1 + geom_text(aes(Event_B, Event_A, label = round(Pcor,2)), color = "black", size = 2.1)
   gg1 <- gg1 + scale_fill_gradient2(limits=c(-1, 1))
   gg1 <- gg1 + scale_x_discrete(labels=axis_labels)
   gg1 <- gg1 + scale_y_discrete(labels=axis_labels)
   gg1 <- gg1 + ggtitle(expression(paste('A  ',italic('Partial Correlations'))))
   gg1 <- gg1 + theme_bw()
-  gg1 <- gg1 + theme(plot.margin=unit(x=c(0,.1,0,0),'cm'),plot.title=element_text(hjust=0),axis.title.x = element_blank(),axis.text=element_text(size=8), axis.title.y=element_blank(),legend.position=c('none'))
+  gg1 <- gg1 + theme(text=element_text(family = "Arial"),plot.margin=unit(x=c(0,.1,0,0),'cm'),plot.title=element_text(hjust=0,size=12),axis.title.x = element_blank(),axis.text=element_text(size=8), axis.title.y=element_blank(),legend.position=c('none'))
   
   gg2 <- ggplot(data=R_tile,aes(x=Event_A,y=Event_B,fill=RR))
   gg2 <- gg2 + geom_tile()
+  gg2 <- gg2 + geom_text(aes(Event_B, Event_A, label = round(RR,2)), color = "black", size = 2.1)
   gg2 <- gg2 + scale_fill_gradient2(limits=c(-1, 1))
   gg2 <- gg2 + scale_x_discrete(labels=axis_labels)
   gg2 <- gg2 + scale_y_discrete(labels=axis_labels)
   gg2 <- gg2 + ggtitle(expression(paste('B  ',italic('PC1 Regression Residuals'))))
   gg2 <- gg2 + theme_bw()
-  gg2 <- gg2 + theme(plot.margin=unit(x=c(0,.1,0,0),'cm'),plot.title=element_text(hjust=0),axis.title.x = element_blank(),axis.text=element_text(size=8), axis.title.y=element_blank(),legend.position=c('none'))
+  gg2 <- gg2 + theme(text=element_text(family = "Arial"),plot.margin=unit(x=c(0,.1,0,0),'cm'),plot.title=element_text(hjust=0,size=12),axis.title.x = element_blank(),axis.text=element_text(size=8), axis.title.y=element_blank(),legend.position=c('none'))
   
   gg3 <- ggplot(data=R_tile,aes(x=Event_A,y=Event_B,fill=WGSUC))
   gg3 <- gg3 + geom_tile()
+  gg3 <- gg3 + geom_text(aes(Event_B, Event_A, label = round(WGSUC,2)), color = "black", size = 2.1)
   gg3 <- gg3 + scale_fill_gradient2(limits=c(-1, 1))
   gg3 <- gg3 + scale_x_discrete(labels=axis_labels)
   gg3 <- gg3 + scale_y_discrete(labels=axis_labels)
-  gg3 <- gg3 + ggtitle(expression(paste('C  ',italic('WGS Uncorrected'))))
+  gg3 <- gg3 + ggtitle(expression(paste('C  ',italic('Wright Uncorrected'))))
   gg3 <- gg3 + theme_bw()
-  gg3 <- gg3 + theme(plot.margin=unit(x=c(0,.1,0,0),'cm'),plot.title=element_text(hjust=0),axis.title.x = element_blank(),axis.text=element_text(size=8), axis.title.y=element_blank(),legend.position=c('none'))
+  gg3 <- gg3 + theme(text=element_text(family = "Arial"),plot.margin=unit(x=c(0,.1,0,0),'cm'),plot.title=element_text(hjust=0,size=12),axis.title.x = element_blank(),axis.text=element_text(size=8), axis.title.y=element_blank(),legend.position=c('none'))
   
   gg4 <- ggplot(data=R_tile,aes(x=Event_A,y=Event_B,fill=WGSBC))
   gg4 <- gg4 + geom_tile()
+  gg4 <- gg4 + geom_text(aes(Event_B, Event_A, label = round(WGSBC,2)), color = "black", size = 2.1)
   gg4 <- gg4 + scale_fill_gradient2(limits=c(-1, 1))
   gg4 <- gg4 + scale_x_discrete(labels=axis_labels)
   gg4 <- gg4 + scale_y_discrete(labels=axis_labels)
-  gg4 <- gg4 + ggtitle(expression(paste('D  ',italic('WGS Bias-Corrected'))))
+  gg4 <- gg4 + ggtitle(expression(paste('D  ',italic('Wright Bias-Corrected'))))
   gg4 <- gg4 + theme_bw()
-  gg4 <- gg4 + theme(plot.margin=unit(x=c(0,.1,0,0),'cm'),plot.title=element_text(hjust=0),axis.title.x = element_blank(),axis.text=element_text(size=8), axis.title.y=element_blank(),legend.position=c('none'))
+  gg4 <- gg4 + theme(text=element_text(family = "Arial"),plot.margin=unit(x=c(0,.1,0,0),'cm'),plot.title=element_text(hjust=0,size=12),axis.title.x = element_blank(),axis.text=element_text(size=8), axis.title.y=element_blank(),legend.position=c('none'))
 
   
   fig_name <- paste('Fig',fig_no,'.eps',sep='')
- postscript(fig_name,horizontal=FALSE,onefile=FALSE,paper='special',height=6.5,width=6.5)
+# postscript(fig_name,horizontal=FALSE,onefile=FALSE,paper='special',height=6.5,width=6.5)
+#  grid.arrange(gg1,gg2,gg3,gg4,ncol=2,nrow=2)
+#  dev.off()
+
+  fig_name <- paste('Fig',fig_no,'.pdf',sep='')
+  pdf(fig_name,paper='special',onefile=FALSE,width=6.5,height=6.5)
+  showtext.begin()
+  print(gg1)
+  print(gg2)
+  print(gg3)
+  print(gg4)
   grid.arrange(gg1,gg2,gg3,gg4,ncol=2,nrow=2)
+  showtext.end()
   dev.off()
 }
 
-plot_fig_5 <- function(error_table,quant_table,fig_no){ # the error interval plot
+plot_fig_4 <- function(error_table,quant_table,fig_no){ # the error interval plot
+  # explored plotting median and interval widths on the plot which uses this code
   error_table <- reorder_method_levels(error_table)
-  gg1 <- ggplot(data=error_table[method!='samp',],aes(x=method,y=error))
-  gg1 <- gg1 + stat_summary(fun.data=boxplot.95,geom='boxplot',aes(fill=method),position='dodge')
+  meds <- error_table[method!='Pearson',list(med=median(error),high=quantile(error,.975),low=quantile(error,.025)),by=method]
+  meds[,CI_width:=high-low]
+  
+  # checking to see if the error intervals are well described by the mean and standard deviation. They are.
+  psd <- 68.2689492 # percent within 1SD of mean
+  psd2 <- 95.4499736 # percent within 2SD of mean
+  up1 <- .5 + psd/2/100
+  up2 <- .5 + psd2/2/100
+  lo1 <- .5 - psd/2/100
+  lo2 <- .5 - psd2/2/100
+  sum_table <- error_table[method!='Pearson',list(med=median(error),up1=quantile(error,up1),up2=quantile(error,up2),lo1=quantile(error,lo1),lo2=quantile(error,lo2),sd=sd(error)),by=method]
+  sum_table[,samp2sd:=up2-lo2]
+  sum_table[,para2sd:=4*sd]
+  sum_table[,samp1sd:=up1-lo1]
+  sum_table[,para1sd:=2*sd]
+  # just report mean and SD
+  sum_table <- error_table[,list(mean=round(mean(error),3),sd=round(sd(error),3)),by=method]
+
+  
+  gg1 <- ggplot(data=error_table[method!='Pearson',],aes(x=method,y=error))
+#  gg1 <- gg1 + stat_summary(fun.data=boxplot.95,geom='boxplot',aes(fill=method),position='dodge')
+  gg1 <- gg1 + stat_summary(fun.data=boxplot.95,geom='boxplot',position='dodge')
   gg1 <- gg1 + scale_y_continuous(name='Error')
-  #  gg1 <- gg1 + coord_cartesian(ylim=c(-.3,.3))
+  gg1 <- gg1 + scale_x_discrete(name='Method',labels=c("pcor" = "PCOR", "rr" = "RR",
+                              "wgsuc" = "WUC", "wgsbc" = "WBC"))
   gg1 <- gg1 + ggtitle('A')
-  #gg1 <- gg1 + theme_bw()
-  gg1 <- gg1 + theme(plot.margin=unit(x=c(0,.1,0,0),'cm'),axis.title=element_text(size=11),axis.text=element_text(size=9),plot.title=element_text(hjust=0),strip.text=element_text(size=10),legend.title=element_blank(),legend.text=element_text(size=9),legend.position=c('none'),legend.margin=unit(-0.6,"cm"))
-  gg1
+  gg1 <- gg1 + theme_bw()
+  gg1 <- gg1 + theme(aspect.ratio=1, text=element_text(family = "Arial"),plot.margin=unit(x=c(0,.1,0,0),'cm'),axis.title=element_text(size=8),axis.text=element_text(size=8),plot.title=element_text(hjust=0,size=12),strip.text=element_text(size=8),legend.title=element_blank(),legend.position=c('none'))
   
   small_error_table <- error_table[method=='wgsbc',]
   inc <- sample(1:dim(small_error_table)[1],50000)
@@ -1433,10 +1557,9 @@ plot_fig_5 <- function(error_table,quant_table,fig_no){ # the error interval plo
   gg2 <- gg2 + geom_line(data=quant_table,aes(x=xx0.025,y=fv0.025),color="blue")
   gg2 <- gg2 + geom_line(data=quant_table,aes(x=xx0.5,y=fv0.5),color="blue")
   gg2 <- gg2 + geom_line(data=quant_table,aes(x=xx0.975,y=fv0.975),color="blue")
-  #gg2 <- gg2 + theme(plot.title=element_text(hjust=0, size=12))
-  gg2 <- gg2 + theme_bw()
-  gg2 <- gg2 + theme(plot.margin=unit(x=c(0,.1,0,0),'cm'),axis.title=element_text(size=11),axis.text=element_text(size=9),plot.title=element_text(hjust=0),strip.text=element_text(size=10),legend.title=element_blank(),legend.text=element_text(size=9),legend.position=c('none'),legend.margin=unit(-0.6,"cm"))
   gg2 <- gg2 + ggtitle('B')
+  gg2 <- gg2 + theme_bw()
+  gg2 <- gg2 + theme(aspect.ratio=1,text=element_text(family = "Arial"),plot.margin=unit(x=c(0,.1,0,0),'cm'),axis.title=element_text(size=8),axis.text=element_text(size=8),plot.title=element_text(hjust=0,size=12),strip.text=element_text(size=8),legend.title=element_blank(),legend.position=c('none'))
   
   
   fig_name <- paste('Fig',fig_no,'.pdf',sep='')
@@ -1445,25 +1568,64 @@ plot_fig_5 <- function(error_table,quant_table,fig_no){ # the error interval plo
 #  dev.off()
 
   w <- 6
-  h <- 3.25
+  h <- 3.1
   pdf(fig_name,paper='special',onefile=FALSE,width=w,height=h)
+  showtext.begin()
+  print(gg1)
+  print(gg2)
   grid.arrange(gg1,gg2,ncol=2,nrow=1)
+  showtext.end()
   dev.off()
 }
+
+@
+
+
+\newpage
+\section{Comparison of empirical and simulated correlations}
+\includegraphics{SupFig00.eps}
+\newline
+\textbf{Fig. 1} The distribution of the raw, Pearson product-moment correlations of the A) NCAA data and B) simulated data.
+
+<<Supp01 Distribution of Correlations, echo=FALSE,message=FALSE>>=
+R_ncaa <- data.table(read.table('R_table.txt',header=TRUE,sep='\t'))
+R_sim <- data.table(read.table('simulated_decath_data_sub2.niter=2500.txt',header=TRUE,sep='\t'))
+R_sim <- R_sim[method=='Pearson',]
+
+gg1 <-ggplot(data=R_ncaa,aes(x=Pearson))
+gg1 <- gg1 + geom_histogram(binwidth=.05)
+gg1 <- gg1 + coord_cartesian(xlim=c(0,1))
+gg1 <- gg1 + xlab('Pearson r')
+gg1 <- gg1 + ggtitle(expression(paste('A  ',italic('NCAA data'))))
+gg1 <- gg1 + theme(plot.margin=unit(x=c(0,.35,0,0),'cm'),axis.title=element_text(size=11),axis.text=element_text(size=9),plot.title=element_text(hjust=0),strip.text=element_text(size=10),legend.title=element_blank(),legend.text=element_text(size=9),legend.position=c('none'),legend.margin=unit(-0.6,"cm"))
+
+
+gg2 <-ggplot(data=R_sim,aes(x=R_est))
+gg2 <- gg2 + geom_histogram(binwidth=.05)
+gg2 <- gg2 + coord_cartesian(xlim=c(0,1))
+gg2 <- gg2 + xlab('Pearson r')
+gg2 <- gg2 + ggtitle(expression(paste('B  ',italic('Simulated data'))))
+gg2 <- gg2 + theme(plot.margin=unit(x=c(0,.35,0,0),'cm'),axis.title=element_text(size=11),axis.text=element_text(size=9),plot.title=element_text(hjust=0),strip.text=element_text(size=10),legend.title=element_blank(),legend.text=element_text(size=9),legend.position=c('none'),legend.margin=unit(-0.6,"cm"))
+
+
+  fig_name <- 'SupFig00.eps'
+  postscript(fig_name,horizontal=FALSE,onefile=FALSE,paper='special',height=3.25,width=6)
+  grid.arrange(gg1,gg2,ncol=2,nrow=1)
+  dev.off()
 
 @
 
 \newpage
 \section{Re-analysis of Wilson et al. (2014) soccer data}
 
-This section re-analyzes the soccer athletic performance data \citep{wilson_does_2014} using Wright's General Size factor analysis with bias correction ($\mathrm{WGS_{bc}}$) to estimate quality-free correlations. Partial correlations conditional on all other performance variables \citep{van_damme_performance_2002} were also used to estimate the quality-free correlations. Pearson, Partial (Pcor), Regression Residual (RR), and $\mathrm{WGS_{bc}}$ correlations are illustrated with heat maps (Fig. 1) and tabled (Table 1). The error intervals associated with each method are illustrated in Fig. 2 and were computed using Monte Carlo simulation of 2500 data sets with a distribution of correlations similar to that of the soccer data (see Methods) The Pearson correlations are from Table 1 of \cite{wilson_does_2014}. The regression residual correlations are from Table 2 of \cite{wilson_does_2014}. The $\mathrm{WGS_{bc}}$ were computed using the PC1 loadings in Table 3 of \cite{wilson_does_2014} (these loadings are estimates of the Quality path coefficients $\alpha$).
+This section re-analyzes the soccer athletic performance data \citep{wilson_does_2014} using Wright's path-analytic factor analysis with bias correction to estimate quality-free correlations \citep{wright_general_1932}. Both partial correlations conditional on all other performance variables \citep{van_damme_performance_2002} and regression residual correlations \citep{wilson_does_2014} were also used to estimate the quality-free correlations. Pearson, Partial (PCOR), Regression Residual (RR), and Wright's bias corrected (WBC) correlations are given in Table 1. The error intervals associated with each method are illustrated in Fig. 2 and were computed using Monte Carlo simulation of 1000 data sets with a distribution of correlations similar to that of the soccer data (see Methods) The Pearson correlations are from Table 1 of \cite{wilson_does_2014}. The regression residual correlations are from Table 2 of \cite{wilson_does_2014}. The WBC correlations were computed using the PC1 loadings in Table 3 of \cite{wilson_does_2014} (these loadings are estimates of the Quality path coefficients $\alpha$).
 
 \begin{table}[ht]
 \caption{Pearson and quality-adjusted correlations for soccer data}
 \centering
 \begin{tabular}{rllrrrr}
   \hline
- & Event\_A & Event\_B & Pearson & Pcor & RR & WGS$_\mathrm{bc}$ \\ 
+ & Event\_A & Event\_B & Pearson & PCOR & RR & WBC \\ 
   \hline
 1 & Squat & X1500 & 0.16 & -0.02 & -0.52 & -0.10 \\ 
   2 & Jump & X1500 & 0.18 & -0.08 & -0.41 & -0.11 \\ 
@@ -1505,91 +1667,104 @@ do_wilson <- function(){
   row.names(R_wgsbc) <- colnames(wilson.cor)
   
   R_cor_tile <- melt(wilson.cor)
-  colnames(R_cor_tile)[3] <- 'Pearson'
+  colnames(R_cor_tile) <- c('Event_A', 'Event_B', 'Pearson')
   diag(R_cor_pcor) <- 1.0
   R_cor_pcor_tile <- melt(R_cor_pcor)
-  colnames(R_cor_pcor_tile)[3] <- 'Pcor'
+  colnames(R_cor_pcor_tile) <- c('Event_A', 'Event_B', 'Pcor')
   diag(R_cor_rr) <- 1.0
   R_cor_rr_tile <- melt(R_cor_rr)
-  colnames(R_cor_rr_tile)[3] <- 'RR'
+  colnames(R_cor_rr_tile) <- c('Event_A', 'Event_B', 'RR')
   diag(R_wgsbc) <- 1.0
   R_wgs_tile <- melt(R_wgsbc)
-  colnames(R_wgs_tile)[3] <- 'WGSBC'
+  colnames(R_wgs_tile) <- c('Event_A', 'Event_B', 'WGSBC')
   
-  R_tile <- merge(R_cor_tile,R_cor_pcor_tile,by=c('Var1','Var2'))
-  R_tile <- merge(R_tile,R_cor_rr_tile,by=c('Var1','Var2'))
-  R_tile <- merge(R_tile,R_wgs_tile,by=c('Var1','Var2'))
+  R_tile <- merge(R_cor_tile,R_cor_pcor_tile,by=c('Event_A','Event_B'))
+  R_tile <- merge(R_tile,R_cor_rr_tile,by=c('Event_A','Event_B'))
+  R_tile <- merge(R_tile,R_wgs_tile,by=c('Event_A','Event_B'))
   colnames(R_tile)[1:2] <- c('Event_A','Event_B')
   R_tile <- data.table(R_tile)
   
-  plot_wilson_correlations(R_tile,axis_labels=c('1500','squat','jump','sprint','agility'),fig_no='01')
+  plot_wilson_correlations(R_tile,axis_labels=c('1500','squat','jump','sprint','agility'),fig_no='05')
 
   
   res_wilson <- list(R=wilson.cor,R_resid=R_wgsbc,bc_alpha=bc_alpha)
   niter <- 1000
   # uncomment the next line to generate the error data
-  # wilson_error <- simulate_data(matrix((rnorm(28*5)+10),nrow=28,ncol=5),res_wilson,btable,niter=niter)
+   wilson_error <- simulate_data(matrix((rnorm(28*5)+10),nrow=28,ncol=5),res_wilson,btable,niter=niter)
   fout <- paste('simulated_wilson_data_sub2.niter=',niter,'.txt',sep='')
-  #write.table(wilson_error,fout,quote=FALSE,sep='\t')
+  write.table(wilson_error,fout,quote=FALSE,sep='\t')
   error_table <- data.table(read.table(fout,header=TRUE))
-  plot_wilson_errors(error_table,fig_no='02')
+  plot_wilson_errors(error_table,fig_no='01')
   
   R_table <- lower_list(R_tile,R_tile[,Event_A],R_tile[,Event_B])
   write.table(R_table,'wilson_soccer_cor_table.txt',quote=FALSE,sep='\t')
 }
 
 plot_wilson_correlations <- function(R_tile,axis_labels,fig_no){
+  # Fig 5 in main text
   # the correlation heat-map plot of the four different adjustments
   gg1 <- ggplot(data=R_tile,aes(x=Event_A,y=Event_B,fill=Pearson))
   gg1 <- gg1 + geom_tile()
+  gg1 <- gg1 + geom_text(aes(Event_B, Event_A, label = round(Pearson,2)), color = "black", size = 2.1)
   gg1 <- gg1 + scale_fill_gradient2(limits=c(-1, 1))
   gg1 <- gg1 + scale_x_discrete(labels=axis_labels)
   gg1 <- gg1 + scale_y_discrete(labels=axis_labels)
   gg1 <- gg1 + ggtitle(expression(paste('A  ',italic('Pearson'))))
   gg1 <- gg1 + theme_bw()
-  gg1 <- gg1 + theme(plot.margin=unit(x=c(0,.1,0,0),'cm'),plot.title=element_text(hjust=0),axis.title.x = element_blank(),axis.text=element_text(size=8), axis.title.y=element_blank(),legend.position=c('none'))
+  gg1 <- gg1 + theme(text=element_text(family = "Arial"),plot.margin=unit(x=c(0,.1,0,0),'cm'),plot.title=element_text(hjust=0,size=12),axis.title.x = element_blank(),axis.text=element_text(size=8), axis.title.y=element_blank(),legend.position=c('none'))
   
   gg2 <- ggplot(data=R_tile,aes(x=Event_A,y=Event_B,fill=Pcor))
   gg2 <- gg2 + geom_tile()
+  gg2 <- gg2 + geom_text(aes(Event_B, Event_A, label = round(Pcor,2)), color = "black", size = 2.1)
   gg2 <- gg2 + scale_fill_gradient2(limits=c(-1, 1))
   gg2 <- gg2 + scale_x_discrete(labels=axis_labels)
   gg2 <- gg2 + scale_y_discrete(labels=axis_labels)
   gg2 <- gg2 + ggtitle(expression(paste('B  ',italic('Partial Correlations'))))
   gg2 <- gg2 + theme_bw()
-  gg2 <- gg2 + theme(plot.margin=unit(x=c(0,0.1,0,0),'cm'),plot.title=element_text(hjust=0),axis.title.x = element_blank(),axis.text=element_text(size=8), axis.title.y=element_blank(),legend.position=c('none'))
+  gg2 <- gg2 + theme(text=element_text(family = "Arial"),plot.margin=unit(x=c(0,0.1,0,0),'cm'),plot.title=element_text(hjust=0,size=12),axis.title.x = element_blank(),axis.text=element_text(size=8), axis.title.y=element_blank(),legend.position=c('none'))
   
   gg3 <- ggplot(data=R_tile,aes(x=Event_A,y=Event_B,fill=RR))
   gg3 <- gg3 + geom_tile()
+  gg3 <- gg3 + geom_text(aes(Event_B, Event_A, label = round(RR,2)), color = "black", size = 2.1)
   gg3 <- gg3 + scale_fill_gradient2(limits=c(-1, 1))
   gg3 <- gg3 + scale_x_discrete(labels=axis_labels)
   gg3 <- gg3 + scale_y_discrete(labels=axis_labels)
   gg3 <- gg3 + ggtitle(expression(paste('C  ',italic('PC1 Regression Residuals'))))
   gg3 <- gg3 + theme_bw()
-  gg3 <- gg3 + theme(plot.margin=unit(x=c(0,0.1,0,0),'cm'),plot.title=element_text(hjust=0),axis.title.x = element_blank(),axis.text=element_text(size=8), axis.title.y=element_blank(),legend.position=c('none'))
+  gg3 <- gg3 + theme(text=element_text(family = "Arial"),plot.margin=unit(x=c(0,0.1,0,0),'cm'),plot.title=element_text(hjust=0,size=12),axis.title.x = element_blank(),axis.text=element_text(size=8), axis.title.y=element_blank(),legend.position=c('none'))
   
   gg4 <- ggplot(data=R_tile,aes(x=Event_A,y=Event_B,fill=WGSBC))
   gg4 <- gg4 + geom_tile()
+  gg4 <- gg4 + geom_text(aes(Event_B, Event_A, label = round(WGSBC,2)), color = "black", size = 2.1)
   gg4 <- gg4 + scale_fill_gradient2(limits=c(-1, 1))
   gg4 <- gg4 + scale_x_discrete(labels=axis_labels)
   gg4 <- gg4 + scale_y_discrete(labels=axis_labels)
-  gg4 <- gg4 + ggtitle(expression(paste('D  ',italic('WGS Bias-Corrected'))))
+  gg4 <- gg4 + ggtitle(expression(paste('D  ',italic('Wright Bias-Corrected'))))
   gg4 <- gg4 + theme_bw()
-  gg4 <- gg4 + theme(plot.margin=unit(x=c(0,0.1,0,0),'cm'),plot.title=element_text(hjust=0),axis.title.x = element_blank(),axis.text=element_text(size=8), axis.title.y=element_blank(),legend.position=c('none'))
+  gg4 <- gg4 + theme(text=element_text(family = "Arial"),plot.margin=unit(x=c(0,0.1,0,0),'cm'),plot.title=element_text(hjust=0,size=12),axis.title.x = element_blank(),axis.text=element_text(size=8), axis.title.y=element_blank(),legend.position=c('none'))
 
   
-  fig_name <- paste('SuppFig',fig_no,'.eps',sep='')
- postscript(fig_name,horizontal=FALSE,onefile=FALSE,paper='special',height=6.5,width=6.5)
+  fig_name <- paste('Fig',fig_no,'.pdf',sep='')
+ #postscript(fig_name,horizontal=FALSE,onefile=FALSE,paper='special',height=6.5,width=6.5)
+  pdf(fig_name,paper='special',onefile=FALSE,width=5.5,height=5.5)
+  showtext.begin()
+  print(gg1)
+  print(gg2)
+  print(gg3)
+  print(gg4)
   grid.arrange(gg1,gg2,gg3,gg4,ncol=2,nrow=2)
+  showtext.end()
   dev.off()
 }
 
 plot_wilson_errors <- function(error_table,fig_no){ # the error interval plot
   error_table <- reorder_method_levels(error_table)
   gg1 <- ggplot(data=error_table[method!='samp',],aes(x=method,y=error))
-  gg1 <- gg1 + stat_summary(fun.data=boxplot.95,geom='boxplot',aes(fill=method),position='dodge')
+  gg1 <- gg1 + stat_summary(fun.data=boxplot.95,geom='boxplot',position='dodge')
   gg1 <- gg1 + scale_y_continuous(name='Error')
-#  gg1 <- gg1 + coord_cartesian(ylim=c(-.3,.3))
-#  gg1 <- gg1 + theme_bw()
+  gg1 <- gg1 + scale_x_discrete(labels=c("pcor" = "PCOR", "rr" = "RR",
+                              "wgsuc" = "WUC", "wgsbc" = "WBC"))
+  gg1 <- gg1 + theme_bw()
   gg1 <- gg1 + theme(plot.margin=unit(x=c(0,0.1,0,0),'cm'),axis.title=element_text(size=11),axis.text=element_text(size=9),plot.title=element_text(hjust=0),strip.text=element_text(size=10),legend.title=element_blank(),legend.text=element_text(size=9),legend.position=c('none'),legend.margin=unit(-0.6,"cm"))
   gg1
 
@@ -1602,52 +1777,14 @@ plot_wilson_errors <- function(error_table,fig_no){ # the error interval plot
 @
 
 
-\includegraphics{SuppFig01.eps}
-\newline
-\textbf{Fig. 1.} A) Heat maps depicting the sign and magnitude of the quality-adjusted correlations among the five performances measured for on 28 soccer players. Positive correlations are blue. Negative correlations are red. Color intensity reflects the magnitude of the correlation. A) Pearson product-moment correlations, B) Partial correlations conditional on all additional performance variables, C) Regression residual correlations computed using the residuals of each performance trait regressed on the first principal component scores. D) Wright's General Size correlations with bias-correction.
-\newpage
-\includegraphics{SuppFig02.eps}
+\includegraphics[scale=.65]{SuppFig01.pdf}
 \newline
 \textbf{Fig. 2} The distribution of the errors for the four adjustment methods estimated by Monte Carlo simulation of the soccer data. Box plots with the median, $50\%$ and $95\%$ intervals represented by the horizontal line, the box, and the tips of the whiskers.
 
 <<Wilson Table,echo=FALSE>>=
   R_table <- data.table(read.table('wilson_soccer_cor_table.txt',header=TRUE,sep='\t'))
-  R_table_form <- R_table[,list(Event_A,Event_B,Pearson=round(Pearson,2),Pcor=round(Pcor,2),RR=round(RR,2),WGSbc=round(WGSBC,2))]
+  R_table_form <- R_table[,list(Event_A,Event_B,Pearson=round(Pearson,2),PCOR=round(Pcor,2),RR=round(RR,2),WBC=round(WGSBC,2))]
   R_tabular <- xtable(R_table_form)
-@
-
-\newpage
-\section{Comparison of empirical and simulated correlations}
-\includegraphics{SupFig00.eps}
-\newline
-\textbf{Fig. 3} The distribution of the raw, Pearson product-moment correlations of the A) NCAA data and B) simulated data.
-
-<<Supp01 Distribution of Correlations, echo=FALSE,message=FALSE>>=
-R_ncaa <- data.table(read.table('R_table.txt',header=TRUE,sep='\t'))
-R_sim <- data.table(read.table('simulated_decath_data_sub2.niter=2500.txt',header=TRUE,sep='\t'))
-R_sim <- R_sim[method=='Pearson',]
-
-gg1 <-ggplot(data=R_ncaa,aes(x=Pearson))
-gg1 <- gg1 + geom_histogram(binwidth=.05)
-gg1 <- gg1 + coord_cartesian(xlim=c(0,1))
-gg1 <- gg1 + xlab('Pearson r')
-gg1 <- gg1 + ggtitle(expression(paste('A  ',italic('NCAA data'))))
-gg1 <- gg1 + theme(plot.margin=unit(x=c(0,.35,0,0),'cm'),axis.title=element_text(size=11),axis.text=element_text(size=9),plot.title=element_text(hjust=0),strip.text=element_text(size=10),legend.title=element_blank(),legend.text=element_text(size=9),legend.position=c('none'),legend.margin=unit(-0.6,"cm"))
-
-
-gg2 <-ggplot(data=R_sim,aes(x=R_est))
-gg2 <- gg2 + geom_histogram(binwidth=.05)
-gg2 <- gg2 + coord_cartesian(xlim=c(0,1))
-gg2 <- gg2 + xlab('Pearson r')
-gg2 <- gg2 + ggtitle(expression(paste('B  ',italic('Simulated data'))))
-gg2 <- gg2 + theme(plot.margin=unit(x=c(0,.35,0,0),'cm'),axis.title=element_text(size=11),axis.text=element_text(size=9),plot.title=element_text(hjust=0),strip.text=element_text(size=10),legend.title=element_blank(),legend.text=element_text(size=9),legend.position=c('none'),legend.margin=unit(-0.6,"cm"))
-
-
-  fig_name <- 'SupFig00.eps'
-  postscript(fig_name,horizontal=FALSE,onefile=FALSE,paper='special',height=3.25,width=6)
-  grid.arrange(gg1,gg2,ncol=2,nrow=1)
-  dev.off()
-
 @
 
 
