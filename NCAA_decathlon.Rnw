@@ -22,26 +22,14 @@
 \usepackage[margin=2.5cm]{geometry}
 
 \begin{document}
+\title{R Scripts used in "Performance trade-offs and Individual Quality in NCAA decathletes}
+\author{Jeffrey A. Walker\thanks{Department of Biological Sciences, University of Southern Maine, 70 Falmouth St., Portland, ME, 04103, U.S.A., E-mail: walker@maine.edu}}
 
-% Title
-\begin{center}
-{\Large
-\textbf{Supplement 1: "Performance trade-offs and Individual Quality in NCAA decathletes"}
-}
-% Authors
-\\
-\textbf{Jeffrey A. Walker}$^{1,\ast}$
-\textbf{Sean P. Caddigan}$^{1}$
-\
-\end{center}
-
+\maketitle
 
 \begin{flushleft}
 
-$^1$ Department of Biological Sciences, University of Southern Maine, 96 Falmouth St., Portland, ME, 04103, U.S.A.
-$^\ast$ E-mail: walker@maine.edu
-
-<<housekeeping,echo=FALSE,message=FALSE>>=
+<<housekeeping,echo=FALSE,message=FALSE,warning=FALSE,prompt=FALSE>>=
 library(data.table)
 library(ggplot2)
 library(gridExtra) #grid.arrange
@@ -58,7 +46,7 @@ font_import(pattern="[A/a]rial")
 loadfonts()
 @
 
-\section{Path Models}
+\section{Path Models of Functional Trade-offs masked by Quality}
 Path diagrams are models of causal relationships. Our path models are hypothetical and used only for clarification and proof of concept. They should be thought of as models for generating simulated data (which the scripts do) in order to demonstrate concepts and not as a model to fit to empirical data.
 \subsection{Simple model of correlation with single common cause}
 
@@ -390,162 +378,11 @@ beta_11*beta_12 + beta_21*beta_22 # the functional correlation component
 
 @
 
-
-\subsection{Misinterpretation of loadings}
-\begin{equation} \label{eq:problems_f}
-  \begin{tikzpicture}
-		\node (1) {$M_1$};
-		\node[right=of 1] (2) {$Q$};
-		\node[right=of 2] (3) {$M_2$};
-		\node[below left=of 1] (4) {$P_1$};
-		\node[right=of 4] (5) {$P_2$};
-		\node[right=of 5] (6) {$P_3$};
-		\node[right=of 6] (7) {$P_4$};
-		\node[right=of 7] (8) {$P_5$};
-		\draw [->] (1) to (4);
-		\draw [->] (1) to (5);
-		\draw [->] (1) to (6);
-		\draw [->] (2) to (4);
-		\draw [->] (2) to (5);
-		\draw [->] (2) to (6);
-		\draw [->] (2) to (7);
-		\draw [->] (2) to (8);
-		\draw [->] (3) to (7);
-		\draw [->] (3) to (8);
-	\end{tikzpicture}
- \end{equation}
-
-This script explores PCs in 5 traits that are a function of a global, quality factor $Q$ with effect $\alpha$ and two local M-P traits with effects $\beta_1$ and $\beta_2$ that are each specific to a module. $P_1$ through $P_3$ form a module because $M_1$ affects these but not $P_4$ and $P_5$ while $M_2$ affects $P_4$ and $P_5$ but not $P_1$ through $P_3$. $P_4$ and $P_5$ form the second module The point is to show that the 2nd Principal component has loadings of opposite signs for performances in different modules despite there being \textbf{no} functional trade-off between performances in different modules.
-
-<<misinterpretation of eigenvalues>>=
-n <- 10^4 # sample size
-P <- matrix(0,nrow=n,ncol=5)
-Z <- rnorm(n) # the global factor 
-M1 <- rnorm(n) # local M-P trait
-M2 <- rnorm(n) # local M-P trait
-alpha <- 0.6 # effect of Z on P
-beta1 <- 0.4 # effect of M1 on module 1 P
-beta2 <- 0.3 # effect of M2 on module 2 P
-for(j in 1:3){
-  P[,j] <- alpha*Z + beta1*M1 + sqrt(1-alpha^2 - beta1^2)*rnorm(n)
-}
-for(j in 1:2){
-  P[,(j+3)] <- alpha*Z + beta2*M2 + sqrt(1-alpha^2-  beta2^2)*rnorm(n)
-}
-P <- scale(P) # center and variance standardize
-res <- eigen(cov(P)) # eigenvector decomposition
-E <- res$vectors
-L <- res$values
-scores <- P%*%E # the matrix of PCA scores
-loadings <- cor(P,scores) # the matrix of PCA loadings
-# L[1:3]/sum(L) # relative eigenvalue
-# loadings[,1:3]
-colnames(loadings) <- paste('PC',1:5,sep='')
-row.names(loadings) <- paste('P',1:5,sep='_')
-table_1 <- data.frame(round(loadings,2))[,1:3]
-table_1 <- rbind(L=round(L[1:3]/sum(L),2),table_1)
-table_1
-write.table(table_1,'loadings.txt',sep='\t',quote=FALSE)
-@
-
-\subsection{How a PC1 with \emph{all same-sign loadings} can emerge without there being a general factor that affects all traits}
-
-\begin{equation}
-  \begin{tikzpicture}
-		\node (1) {$P_1$};
-		\node[below=of 1] (2) {$P_2$};
-		\node[below right=of 2] (3) {$P_3$};
-		\node[right=of 3] (4) {$P_4$};
-		\node[right=of 4] (5) {$P_5$};
-  	\node[right=of 5] (6) {$P_6$};
-  	\node[right=of 6] (7) {$P_7$};
-  	\node[right=of 7] (8) {$P_8$};
-  	\node[above right=of 8] (9) {$P_9$};
-  	\node[above=of 9] (10) {$P_{10}$};
-  	\node[above right=of 1] (11) {$M_1$};
-    \node[above left=of 10] (12) {$M_2$};
-    \node[right=3cm of 11] (13) {$Q$};
-   
-		\draw [->] (11) to (1);
-  	\draw [->] (11) to (2);
-  	\draw [->] (11) to (3);
-  	\draw [->] (11) to (4);
-  	\draw [->] (11) to (5);
-  	\draw [->] (12) to (6);
-    \draw [->] (12) to (7);
-    \draw [->] (12) to (8);
-    \draw [->] (12) to (9);
-    \draw [->] (12) to (10);
-  	\draw [->] (13) to (3);
-  	\draw [->] (13) to (4);
-  	\draw [->] (13) to (5);
-  	\draw [->] (13) to (6);
-    \draw [->] (13) to (7);
-    \draw [->] (13) to (8);
-	\end{tikzpicture}
- \end{equation}
-
-Script to explore the loadings on PC1 for 10 performance traits that are a function of two M-P traits and one quality trait, all of which are statistically independent of each other, and none of which are global. In the default, $Q$ has a small effect on \emph{a subset of the performance traits only} ($P_3$ through $P_8$), all in the same direction, $M_1$ has a moderate effect on $P_1$ through $P_5$, all in the same direction, and $M_2$ has a moderate effect on $P_6$ through $P_{10}$, all in the same direction. PC1 has loadings all of the same sign, despite there being no global variable. PC1 contains a mix of extrinisic quality and M-P trait variance.
-
-<<all positive PC1 but no global>>=
-n <- 10^5 # sample size
-n_p <- 10 # number of performance traits
-P <- matrix(0,nrow=n,ncol=n_p) # initialize the matrix of performance values
-# three independent, M-P traits
-M <- matrix(rnorm(n*3),nrow=n,ncol=3)
-# the effects of M-P traits on performance
-beta1 <- 0.25 # default .2 #effect of Q
-beta_pos <- 0.5 # default .5
-beta_neg <- -.0 # default 0
-beta1j <- c(rep(0,2),rep(1,6),rep(0,2))*beta1 # Q effects
-beta2j <- c(rep(beta_pos,5),rep(beta_neg,5)) # M1 effects
-beta3j <- c(rep(beta_neg,5),rep(beta_pos,5)) # M2 effects
-beta <- t(matrix(c(beta1j,beta2j,beta3j),nrow=10,ncol=3))
-P <- matrix(rnorm(n*3),nrow=n,ncol=3)%*%beta + 
-  sqrt(1-diag(t(beta)%*%beta))*matrix(rnorm(n*n_p),nrow=n,ncol=n_p)
-# are variances close to 1?
-diag(cov(P))
-
-P <- scale(P)
-res <- eigen(cov(P)) # eigenvector decomp
-E <- res$vectors 
-L <- res$values
-scores <- P%*%E # matrix of PCA scores
-loadings <- cor(P,scores) # matrix of PCA loadings
-# L[1:3]/sum(L) # relative eigenvalue
-# loadings[,1:3]
-colnames(loadings) <- paste('PC',1:10,sep='')
-row.names(loadings) <- paste('P',1:10,sep='_')
-table_1 <- data.frame(round(loadings,2))[,1:3]
-table_1 <- rbind(L=round(L[1:3]/sum(L),2),table_1)
-table_1
-write.table(table_1,'loadings.txt',sep='\t',quote=FALSE)
-
-# do WGS with bias correction
-R <- cor(P)
-alpha_hat <- matrix(loadings[,1],nrow=n_p,ncol=1)
-R_gs <- alpha_hat%*%t(alpha_hat) # expected correlations due to general size
-r_bar <- abs(mean(R[lower.tri(R)]))
-r_gs_bar <- abs(mean(R_gs[lower.tri(R_gs)]))
-wc <- r_bar/r_gs_bar # bias correction ratio due to Wright 1932
-R_gs_bc <- R_gs * wc # Wright's bias-correct correlations due to general size
-R_wgsbc <- R - R_gs_bc
-
-#R_wgsbc <- gwfa(P,which_size='pc1',bc='wright',b=0)$R_resid
-R_func <- t(beta[2:3,])%*%beta[2:3,] # net functional correlations
-error_table <- round(data.table(
-  wgsbc=R_wgsbc[lower.tri(R_wgsbc)],
-  net_func=R_func[lower.tri(R_func)]),2)
-
-# the table of estimated via WGS and true net functional correlations
-error_table
-@
-
 \subsection{How quality or a facilitation does not mask trade-offs at the whole animal level}
 This is a script to explore the section "What facilitations or quality do not mask" in the Discussion of the paper.
 \begin{equation} \label{eq:discussion_a}
   \begin{tikzpicture}
-		\node (1) {$M_1$};
+  	\node (1) {$M_1$};
 		\node[below right=of 1] (2) {$P_1$};
 		\node[right=of 2] (3) {$P_2$};
 		\node[above right=of 3] (4) {$Q$};
@@ -596,8 +433,6 @@ This is a script to explore the section "What facilitations or quality do not ma
   mean(delta_P1) # sample mean response to training for P1
   mean(delta_P2) # sample mean response to training for P2
   data.frame(delta_P1=delta_P1,delta_P2=delta_P2)[1:5,]
-  
-
 @
 
 <<Analyze NCAA decathlon data, echo=FALSE>>=
@@ -1365,65 +1200,6 @@ boxplot.95 <- function(x){
   return(out)
 }
 
-plot_old_fig_2 <- function(){
-  # this fig is now in the supplement
-  # a figure of subsets of a bivariate distribution, with subsets as increasingly smaller ranges of the major axis
-  seed <- 1 # set this to always produce the same results
-  set.seed(seed)
-  n <- 5*10^3
-  # create two vectors x and y that are correlated due to the common cause z
-  z <- rnorm(n)
-  x <- z + rnorm(n)
-  y <- z + rnorm(n)
-  E <- eigen(cor(data.frame(x=x,y=y)))$vectors # eigenvector decomposition
-  pc1 <- x*E[1,1] + y*E[2,1] # PC1 scores
-  r <- cor(x,y) # correlation between x and y
-  
-  # top 50%
-  cut <- quantile(pc1,.5) # the median PC1
-  inc <- which(pc1>cut) # inc includes the individuals with PC1 > cut
-  # the .5 refers to top 50%
-  x.5 <- x[inc]
-  y.5 <- y[inc]
-  r.5 <- cor(x.5,y.5)
-  
-  # top 5%
-  cut <- quantile(pc1,.95)
-  #  inc <- sample(which(pc1>cut),n)
-  inc <- which(pc1>cut)
-  x.95 <- x[inc]
-  y.95 <- y[inc]
-  r.95 <- cor(x.95,y.95)
-  
-  # combine into a data.table and plot
-  data <- data.table(rbind(
-    data.frame(X=x,Y=y,Level='All'),
-    data.frame(X=x.5,Y=y.5,Level='Top 50%'),
-    data.frame(X=x.95,Y=y.95,Level='Top 5%')))
-  
-  cors <- data[,list(cor=round(cor(X,Y),2)),by=Level]
-  gg <- ggplot(data=data,aes(x=X,y=Y))
-  gg <- gg + geom_point()
-  gg <- gg + xlab(expression(P[1])) + ylab(expression(P[2]))
-  # the default font size is 5 mm which is about 14.1 point size
-  gg <- gg + geom_text(data=cors,aes(label=paste("r = ", cor, sep="")), 
-                       x=3,y=-4,size=8/14.1*5)
-  gg <- gg + facet_grid(.~Level, labeller=label_both)
-  gg <- gg + theme_bw()
-  gg <- gg + theme(plot.margin=unit(x=c(0,0.1,0,0),'cm'),axis.title=element_text(size=8),axis.text=element_text(size=8),plot.title=element_text(hjust=0, size=12),strip.text=element_text(size=8),legend.margin=unit(-0.6,"cm"),legend.position=c('bottom'))
-  
-  fileout <- 'Fig02.eps'
-  height <- 3
-  width <- 6
-  ggsave(fileout,width=width,height=height,dpi=300)
-  
-  write.it <- FALSE
-  if(write.it == TRUE){
-    fn <- 'fig2data.txt'
-    write.table(data,fn,quote=FALSE,sep='\t',row.names=FALSE)
-  }
-
-}
 plot_fig_2 <- function(R_tile){
   # the correlation heat-map for the Pearson correlations
   # max w: 180 mm = 7.08661 inch
@@ -1581,13 +1357,7 @@ plot_fig_4 <- function(error_table,quant_table,fig_no){ # the error interval plo
 @
 
 
-\newpage
-\section{Comparison of empirical and simulated correlations}
-\includegraphics{SupFig00.eps}
-\newline
-\textbf{Fig. 1} The distribution of the raw, Pearson product-moment correlations of the A) NCAA data and B) simulated data.
-
-<<Supp01 Distribution of Correlations, echo=FALSE,message=FALSE>>=
+<<Supp Fig 01: Distribution of Correlations, echo=FALSE,message=FALSE>>=
 R_ncaa <- data.table(read.table('R_table.txt',header=TRUE,sep='\t'))
 R_sim <- data.table(read.table('simulated_decath_data_sub2.niter=2500.txt',header=TRUE,sep='\t'))
 R_sim <- R_sim[method=='Pearson',]
@@ -1597,7 +1367,7 @@ gg1 <- gg1 + geom_histogram(binwidth=.05)
 gg1 <- gg1 + coord_cartesian(xlim=c(0,1))
 gg1 <- gg1 + xlab('Pearson r')
 gg1 <- gg1 + ggtitle(expression(paste('A  ',italic('NCAA data'))))
-gg1 <- gg1 + theme(plot.margin=unit(x=c(0,.35,0,0),'cm'),axis.title=element_text(size=11),axis.text=element_text(size=9),plot.title=element_text(hjust=0),strip.text=element_text(size=10),legend.title=element_blank(),legend.text=element_text(size=9),legend.position=c('none'),legend.margin=unit(-0.6,"cm"))
+gg1 <- gg1 + theme(text=element_text(family = "Arial"),plot.margin=unit(x=c(0,.35,0,0),'cm'),axis.title=element_text(size=11),axis.text=element_text(size=9),plot.title=element_text(hjust=0),strip.text=element_text(size=10),legend.title=element_blank(),legend.text=element_text(size=9),legend.position=c('none'),legend.margin=unit(-0.6,"cm"))
 
 
 gg2 <-ggplot(data=R_sim,aes(x=R_est))
@@ -1605,44 +1375,20 @@ gg2 <- gg2 + geom_histogram(binwidth=.05)
 gg2 <- gg2 + coord_cartesian(xlim=c(0,1))
 gg2 <- gg2 + xlab('Pearson r')
 gg2 <- gg2 + ggtitle(expression(paste('B  ',italic('Simulated data'))))
-gg2 <- gg2 + theme(plot.margin=unit(x=c(0,.35,0,0),'cm'),axis.title=element_text(size=11),axis.text=element_text(size=9),plot.title=element_text(hjust=0),strip.text=element_text(size=10),legend.title=element_blank(),legend.text=element_text(size=9),legend.position=c('none'),legend.margin=unit(-0.6,"cm"))
+gg2 <- gg2 + theme(text=element_text(family = "Arial"),plot.margin=unit(x=c(0,.35,0,0),'cm'),axis.title=element_text(size=11),axis.text=element_text(size=9),plot.title=element_text(hjust=0),strip.text=element_text(size=10),legend.title=element_blank(),legend.text=element_text(size=9),legend.position=c('none'),legend.margin=unit(-0.6,"cm"))
 
 
-  fig_name <- 'SupFig00.eps'
-  postscript(fig_name,horizontal=FALSE,onefile=FALSE,paper='special',height=3.25,width=6)
+  fig_name <- 'SupFig01.pdf'
+  w <- 6
+  h <- 3.25
+  pdf(fig_name,paper='special',onefile=FALSE,width=w,height=h)
+  showtext.begin()
+  print(gg1)
+  print(gg2)
   grid.arrange(gg1,gg2,ncol=2,nrow=1)
+  showtext.end()
   dev.off()
-
 @
-
-\newpage
-\section{Re-analysis of Wilson et al. (2014) soccer data}
-
-This section re-analyzes the soccer athletic performance data \citep{wilson_does_2014} using Wright's path-analytic factor analysis with bias correction to estimate quality-free correlations \citep{wright_general_1932}. Both partial correlations conditional on all other performance variables \citep{van_damme_performance_2002} and regression residual correlations \citep{wilson_does_2014} were also used to estimate the quality-free correlations. Pearson, Partial (PCOR), Regression Residual (RR), and Wright's bias corrected (WBC) correlations are given in Table 1. The error intervals associated with each method are illustrated in Fig. 2 and were computed using Monte Carlo simulation of 1000 data sets with a distribution of correlations similar to that of the soccer data (see Methods) The Pearson correlations are from Table 1 of \cite{wilson_does_2014}. The regression residual correlations are from Table 2 of \cite{wilson_does_2014}. The WBC correlations were computed using the PC1 loadings in Table 3 of \cite{wilson_does_2014} (these loadings are estimates of the Quality path coefficients $\alpha$).
-
-\begin{table}[ht]
-\caption{Pearson and quality-adjusted correlations for soccer data}
-\centering
-\begin{tabular}{rllrrrr}
-  \hline
- & Event\_A & Event\_B & Pearson & PCOR & RR & WBC \\ 
-  \hline
-1 & Squat & X1500 & 0.16 & -0.02 & -0.52 & -0.10 \\ 
-  2 & Jump & X1500 & 0.18 & -0.08 & -0.41 & -0.11 \\ 
-  3 & Jump & Squat & 0.47 & 0.18 & -0.20 & 0.03 \\ 
-  4 & Sprint & X1500 & 0.32 & 0.28 & 0.05 & 0.11 \\ 
-  5 & Sprint & Squat & 0.29 & 0.14 & -0.06 & -0.03 \\ 
-  6 & Sprint & Jump & 0.37 & 0.27 & -0.25 & 0.01 \\ 
-  7 & Agility & X1500 & 0.28 & 0.22 & -0.44 & -0.01 \\ 
-  8 & Agility & Squat & 0.50 & 0.30 & 0.15 & 0.06 \\ 
-  9 & Agility & Jump & 0.63 & 0.51 & -0.02 & 0.15 \\ 
-  10 & Agility & Sprint & 0.24 & -0.09 & -0.52 & -0.12 \\ 
-   \hline
-\end{tabular}
-\end{table}
-
-\bibliographystyle{jxb}
-\bibliography{Supp1}
 
 <<Analyze Wilson Data, echo=FALSE>>=
 do_wilson <- function(){
@@ -1694,7 +1440,7 @@ do_wilson <- function(){
   fout <- paste('simulated_wilson_data_sub2.niter=',niter,'.txt',sep='')
   write.table(wilson_error,fout,quote=FALSE,sep='\t')
   error_table <- data.table(read.table(fout,header=TRUE))
-  plot_wilson_errors(error_table,fig_no='01')
+  plot_wilson_errors(error_table)
   
   R_table <- lower_list(R_tile,R_tile[,Event_A],R_tile[,Event_B])
   write.table(R_table,'wilson_soccer_cor_table.txt',quote=FALSE,sep='\t')
@@ -1757,7 +1503,7 @@ plot_wilson_correlations <- function(R_tile,axis_labels,fig_no){
   dev.off()
 }
 
-plot_wilson_errors <- function(error_table,fig_no){ # the error interval plot
+plot_wilson_errors <- function(error_table){ # the error interval plot
   error_table <- reorder_method_levels(error_table)
   gg1 <- ggplot(data=error_table[method!='samp',],aes(x=method,y=error))
   gg1 <- gg1 + stat_summary(fun.data=boxplot.95,geom='boxplot',position='dodge')
@@ -1765,28 +1511,19 @@ plot_wilson_errors <- function(error_table,fig_no){ # the error interval plot
   gg1 <- gg1 + scale_x_discrete(labels=c("pcor" = "PCOR", "rr" = "RR",
                               "wgsuc" = "WUC", "wgsbc" = "WBC"))
   gg1 <- gg1 + theme_bw()
-  gg1 <- gg1 + theme(plot.margin=unit(x=c(0,0.1,0,0),'cm'),axis.title=element_text(size=11),axis.text=element_text(size=9),plot.title=element_text(hjust=0),strip.text=element_text(size=10),legend.title=element_blank(),legend.text=element_text(size=9),legend.position=c('none'),legend.margin=unit(-0.6,"cm"))
+  gg1 <- gg1 + theme(text=element_text(family = "Arial"),plot.margin=unit(x=c(0,0.1,0,0),'cm'),axis.title=element_text(size=11),axis.text=element_text(size=9),plot.title=element_text(hjust=0),strip.text=element_text(size=10),legend.title=element_blank(),legend.text=element_text(size=9),legend.position=c('none'),legend.margin=unit(-0.6,"cm"))
   gg1
 
-  fig_name <- paste('SuppFig',fig_no,'.eps',sep='')
- postscript(fig_name,horizontal=FALSE,onefile=FALSE,paper='special',height=3.25,width=3.25)
+  fig_name <- 'SuppFig02.pdf'
+  pdf(fig_name,paper='special',onefile=FALSE,width=3.25,height=3.25)
+  showtext.begin()
   print(gg1)
+  showtext.end()
   dev.off()
+
 }
 
 @
-
-
-\includegraphics[scale=.65]{SuppFig01.pdf}
-\newline
-\textbf{Fig. 2} The distribution of the errors for the four adjustment methods estimated by Monte Carlo simulation of the soccer data. Box plots with the median, $50\%$ and $95\%$ intervals represented by the horizontal line, the box, and the tips of the whiskers.
-
-<<Wilson Table,echo=FALSE>>=
-  R_table <- data.table(read.table('wilson_soccer_cor_table.txt',header=TRUE,sep='\t'))
-  R_table_form <- R_table[,list(Event_A,Event_B,Pearson=round(Pearson,2),PCOR=round(Pcor,2),RR=round(RR,2),WBC=round(WGSBC,2))]
-  R_tabular <- xtable(R_table_form)
-@
-
 
 \end{flushleft}
 
