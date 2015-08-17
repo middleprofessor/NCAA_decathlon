@@ -22,7 +22,7 @@
 \usepackage[margin=2.5cm]{geometry}
 
 \begin{document}
-\title{R Scripts used in "Performance trade-offs and Individual Quality in NCAA decathletes}
+\title{R Scripts used in ``Performance trade-offs and Individual Quality in NCAA decathletes"}
 \author{Jeffrey A. Walker\thanks{Department of Biological Sciences, University of Southern Maine, 70 Falmouth St., Portland, ME, 04103, U.S.A., E-mail: walker@maine.edu}}
 
 \maketitle
